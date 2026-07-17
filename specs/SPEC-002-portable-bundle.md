@@ -26,7 +26,8 @@ MyCopilot/                            ← kopierbarer Ordner
 │   └── node_modules/                 ← via `npm install` im Build
 ├── config.json                       ← BYOK-Config (DPAPI-verschlüsselt)
 └── data/                             ← lokaler State
-    ├── chat-history.db               ← SQLite (geplant)
+    ├── sessions/                     ← Chat-History (eine .jsonl pro Session)
+    │   └── {session-id}.jsonl
     ├── logs/
     └── cache/
 ```

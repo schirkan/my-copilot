@@ -259,7 +259,9 @@ export default defineConfig({
 
 ## Offene Punkte
 
-- **Session-Liste Sidebar**: lokale SQLite-Abfrage oder in-memory?
+- **Session-Liste Sidebar**: lokale JSONL-Reads (alle Session-Files
+  in `data/sessions/` scannen, Metadaten aus erster Zeile) oder
+  in-memory-Index mit Sidecar-Cache-File?
 - **Dark/Light-Mode**: System-Präferenz folgen oder User-Settings?
 - **Markdown-Rendering** für Assistant-Responses: react-markdown?
 - **Tool-UI-Bibliothek**: shadcn/ui als Basis?

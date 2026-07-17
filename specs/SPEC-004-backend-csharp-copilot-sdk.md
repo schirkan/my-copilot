@@ -16,7 +16,7 @@ Das C#-Backend ist die **einzige Brücke zwischen Frontend
 3. Übersetzt **BYOK-Config** (siehe SPEC-003) in CLI-Auth-Header.
 4. Stellt dem Frontend ein **stabiles IPC-API** zur Verfügung
    (Tauri-Rust → C# via Sidecar-Pattern).
-5. Persistiert **Chat-History & State** in `./data/` (SQLite).
+5. Persistiert **Chat-History & State** in `./data/sessions/` (JSONL, eine Datei pro Session).
 
 ## IPC-Architektur
 
@@ -156,11 +156,15 @@ oder Migration zu SQLite.
   C# als Service? — siehe SPEC-001 § Offene Punkte
 - **Streaming-Protokoll**: SSE vom Copilot CLI → C# → Tauri-Events?
   Oder einfacher: Polling?
-- **Schema-Migration**: bei v1+ Schema-Changes für SQLite
+- **Schema-Migration**: bei v1+ Schema-Changes für JSONL
+  (rückwärtskompatibel via Default-Werte pro Feld, kein klassisches
+  Migrations-Script nötig)
 
 ## Quellen
 
 - `github/copilot-sdk` (.NET-Variante)
 - Microsoft Learn — `Process.Start` / Subprozess-Management
-- SQLite mit .NET — `Microsoft.Data.Sqlite`
+- JSONL-Pattern in .NET — `System.Text.Json` + `File.AppendAllText`
+  (alternativ: `Serilog` mit JSON-Formatter, falls strukturierte
+  Logs + Append-only-Pattern konsolidiert werden sollen)
 - Tauri 2 — Sidecar-Pattern
