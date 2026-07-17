@@ -14,10 +14,7 @@ kein NSIS, keine Registry-Einträge, keine Admin-Rechte. Doppelklick auf
 
 ```
 MyCopilot/                            ← kopierbarer Ordner
-├── MyCopilot.exe                     ← Tauri-Launcher (single-file Rust)
-├── backend/
-│   ├── MyCopilot.Backend.dll         ← C#-Code (self-contained AOT)
-│   └── *.dll                         ← .NET-Runtime-Deps
+├── MyCopilot.exe                     ← Tauri-Launcher + Bridge (single-file Rust)
 ├── node/
 │   └── node.exe                      ← embedded Node.js v22+ portable
 ├── copilot-cli/
@@ -34,14 +31,17 @@ MyCopilot/                            ← kopierbarer Ordner
 
 **Größe-Schätzung:**
 
-| Komponente       | Größe           |
-|------------------|-----------------|
-| Tauri Rust exe   | ~10 MB          |
-| C# AOT Backend   | ~15–30 MB       |
-| Node.js embedded | ~30 MB          |
-| Copilot CLI+Deps | ~50–100 MB      |
-| React-Bundle     | ~2–5 MB         |
-| **Gesamt**       | **~110–180 MB** |
+| Komponente                       | Größe           |
+|----------------------------------|-----------------|
+| Tauri-Rust exe (inkl. Bridge + SDK) | ~25–40 MB   |
+| Node.js embedded                 | ~30 MB          |
+| Copilot CLI+Deps                 | ~50–100 MB      |
+| React-Bundle                     | ~2–5 MB         |
+| **Gesamt**                       | **~107–175 MB** |
+
+> Hinweis: Tauri-Rust exe wächst durch Bridge-Logik + Copilot SDK
+> Rust von ~10 MB auf ~25–40 MB. Netto-Ersparnis vs. C#-Variante:
+> ~5–15 MB (C# AOT-Runtime entfällt komplett).
 
 ## Pfad-Resolution zur Laufzeit
 
@@ -49,42 +49,42 @@ Alle Pfade werden zur Laufzeit **exe-relativ** aufgelöst. NIEMALS
 AppData, Registry oder andere systemweite Locations verwenden — sonst
 ist die Portabilität gebrochen.
 
-```csharp
-using System.IO;
-using System.Reflection;
+```rust
+use std::env;
+use std::path::PathBuf;
+use std::process::Stdio;
+use tokio::process::Command;
 
-var exeDir = Path.GetDirectoryName(
-    Assembly.GetExecutingAssembly().Location)!;
+let exe_dir: PathBuf = env::current_exe()?
+    .parent()
+    .ok_or("no parent dir")?
+    .to_path_buf();
 
 // Node.js Binary
-var nodeExe = OperatingSystem.IsWindows()
-    ? Path.Combine(exeDir, "node", "node.exe")
-    : Path.Combine(exeDir, "node", "node");
+let node_exe = exe_dir.join("node").join(
+    if cfg!(windows) { "node.exe" } else { "node" }
+);
 
 // Copilot CLI Entry
-var cliEntry = Path.Combine(exeDir, "copilot-cli", "index.js");
+let cli_entry = exe_dir.join("copilot-cli").join("index.js");
 
 // Config & Data
-var configPath = Path.Combine(exeDir, "config.json");
-var dataDir = Path.Combine(exeDir, "data");
-Directory.CreateDirectory(dataDir);  // idempotent
+let config_path = exe_dir.join("config.json");
+let data_dir    = exe_dir.join("data");
+tokio::fs::create_dir_all(&data_dir).await?;  // idempotent
 
 // Subprozess mit korrekten ENV-Vars starten
-var psi = new ProcessStartInfo {
-    FileName = nodeExe,
-    Arguments = $"\"{cliEntry}\"",
-    UseShellExecute = false,
-    RedirectStandardInput  = true,
-    RedirectStandardOutput = true,
-    RedirectStandardError  = true,
-    CreateNoWindow         = true,
-};
-psi.Environment["COPILOT_HOME"] = Path.Combine(exeDir, "copilot-cli");
-psi.Environment["NODE_PATH"]    = Path.Combine(exeDir, "copilot-cli", "node_modules");
-// Wichtig: NICHT PATH ändern, sonst Kollision mit System-Node
-
-var proc = Process.Start(psi)!;
-// → Copilot SDK .NET spricht via Stdin/Stdout mit proc (JSON-RPC)
+let mut child = Command::new(&node_exe)
+    .arg(&cli_entry)
+    .env("COPILOT_HOME", exe_dir.join("copilot-cli"))
+    .env("NODE_PATH",    exe_dir.join("copilot-cli").join("node_modules"))
+    // Wichtig: NICHT PATH ändern, sonst Kollision mit System-Node
+    .stdin(Stdio::piped())
+    .stdout(Stdio::piped())
+    .stderr(Stdio::piped())
+    .kill_on_drop(true)
+    .spawn()?;
+// → Copilot SDK Rust spricht via Stdin/Stdout mit child (JSON-RPC)
 ```
 
 ## Build-Konfiguration (Tauri)
@@ -110,9 +110,8 @@ var proc = Process.Start(psi)!;
    win-x64.zip` → extrahieren → `node.exe` ins Build-Verzeichnis.
 2. **Copilot CLI installieren**: `npm install @github/copilot-cli`
    → kompletter `node_modules/` ins Build-Verzeichnis.
-3. **C# kompilieren**: `dotnet publish -c Release -r win-x64
-   --self-contained true -p:PublishAot=true` → ins Build-Verzeichnis.
-4. **Tauri-Build**: `cargo tauri build` → fertiges `MyCopilot.exe`.
+3. **Tauri-Build**: `cargo tauri build` → fertiges `MyCopilot.exe`
+   (App-Shell + Bridge + Copilot SDK Rust in einem Binary).
 
 ## Distribution
 
@@ -139,4 +138,5 @@ var proc = Process.Start(psi)!;
 
 - Tauri 2.x Bundle-Konfiguration (tauri.app)
 - nodejs.org Distribution-Liste
-- Microsoft Learn — `dotnet publish` Self-Contained AOT
+- `tokio::process::Command` — async Subprozess-Management
+- Tauri 2 Docs — Sidecar-Pattern

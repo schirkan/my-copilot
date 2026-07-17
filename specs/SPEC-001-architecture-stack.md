@@ -18,22 +18,23 @@ End-User Node.js separat installieren muss.
 ```
 ┌────────────────────────────────────────────────────────────┐
 │ Tauri WebView (CopilotKit React Frontend)                   │
-│   ↕ IPC (Tauri-Commands / Events)                          │
-│ Tauri Rust Core (Sidecar-Bridge)                           │
-│   ↓ Process.Start (Sidecar-Pattern)                        │
-│ C# Backend (.NET 9, self-contained AOT)                    │
-│   ↓ Copilot SDK .NET → JSON-RPC über Stdin/Stdout          │
-│ Node.js (embedded, portable)                               │
-│   ↓ startet                                                 │
-│ GitHub Copilot CLI (Node.js-App)                           │
+│   ↕ Tauri-IPC (Commands + Events, intern — kein Netzwerk)  │
+│ Tauri Rust Core (App-Shell + Bridge)                       │
+│   ├── spawnt Subprozess                                    │
+│   └── JSON-RPC via Stdin/Stdout-Pipes (Copilot SDK Rust)   │
+│ GitHub Copilot CLI (Node.js-App, embedded)                 │
 │   ↓ HTTPS / SSE                                             │
-│ OpenAI-kompatibler Endpoint                                │
-│   (Azure OpenAI · self-hosted vLLM/LM-Studio · OpenRouter) │
+│ OpenAI-kompatibler Endpoint                                 │
+│   (Azure OpenAI · self-hosted vLLM/LM-Studio · OpenRouter)  │
 └────────────────────────────────────────────────────────────┘
 ```
 
-**Drei Prozesse zur Laufzeit**: Tauri (Rust) · C# Backend ·
+**Zwei Prozesse zur Laufzeit**: Tauri-Rust (App-Shell + Bridge) ·
 Node.js+CLI.
+
+**Wichtig**: Es wird **kein Port** für IPC geöffnet — weder HTTP
+noch Named Pipe noch TCP. Alle Inter-Prozess-Kommunikation läuft
+über OS-Pipes (Stdin/Stdout des Subprozesses).
 
 ## Tech-Entscheidungen
 
@@ -45,15 +46,20 @@ Node.js+CLI.
   zu C# + Node.js-Setup.
 - **Trade-off**: Rust-Backend klein, IPC-Overhead zu C# minimal.
 
-### C# Backend (.NET 9)
+### Tauri-Rust Bridge
 
-- **Warum**: Martins 20+ Jahre .NET-Expertise.
-- **Copilot SDK**: Offizielles .NET-Paket verfügbar
-  (`github/copilot-sdk` Repo, Multi-Sprache: TS / Python / Go / .NET /
-  Java / Rust).
-- **Self-contained AOT**: Kompiliertes Binary ohne .NET-Framework-
-  Installation beim User.
-- **Trade-off**: Type-Safety + Performance + Martin-Vertrautheit.
+- **Warum**: Eine Schicht weniger (Tauri-Rust übernimmt Bridge-Logik,
+  kein separates Backend nötig), kein Port für IPC nötig
+  (Stdin/Stdout-Pipes reichen).
+- **Copilot SDK Rust**: Offizielles Rust-Paket verfügbar
+  (`github/copilot-sdk` Repo, Multi-Sprache: TS / Python / Go /
+  .NET / Java / Rust).
+- **IPC**: Stdin/Stdout-Pipes via `tokio::process::Command` —
+  **kein HTTP, kein Named Pipe, kein TCP-Port** (siehe
+  `DECISIONS.md` § Architektur-Verschlankung).
+- **Trade-off**: Rust-Lernkurve (Martin 20+ Jahre .NET).
+  Mitigation: Tauri ist Rust-nativ, große Community, viele
+  Beispiele für genau dieses Subprozess-Pattern.
 
 ### GitHub Copilot CLI (statt direkter OpenAI-Aufruf)
 
@@ -79,19 +85,19 @@ Node.js+CLI.
 - **Warum**: Copilot CLI ist eine Node.js-Anwendung. Wir wollen den User
   nicht zwingen, Node.js separat zu installieren.
 - **Bezugsquelle**: Portable Node.js v22+ von nodejs.org (~30 MB).
-- **Runtime**: Im App-Bundle mitgeliefert, vom C#-Backend absolut
-  gepfadet gestartet. NODE_PATH nicht ändern, sondern explizit an
-  Prozess-ENV übergeben.
+- **Runtime**: Im App-Bundle mitgeliefert, von der Tauri-Rust
+  Bridge absolut gepfadet gestartet. NODE_PATH nicht ändern,
+  sondern explizit an Prozess-ENV übergeben.
 
 ## Trade-offs (ehrlich)
 
 | Vorteil                                | Nachteil                                  |
 |----------------------------------------|-------------------------------------------|
 | Copilot-Tools out-of-the-box           | +100 MB Bundle-Size (Node.js+CLI+Deps)    |
-| BYOK native                            | 3 Prozesse zur Laufzeit (Tauri/C#/Node)   |
-| Portable Folder, kein Installer        | Build-Pipeline komplexer                  |
-| C# Backend passt zu Martins Skills     | TS-Ökosystem-Hilfen etwas entfernt       |
-| Microsoft-nativ (Copilot SDK)          | Breaking-Changes bei SDK-Updates möglich  |
+| BYOK native                            | 2 Prozesse zur Laufzeit (Tauri/CLI)       |
+| Portable Folder, kein Installer        | Rust-Lernkurve (Martin: 20+ Jahre .NET)   |
+| Tauri-Rust als Bridge = eine Sprache   | Breaking-Changes bei SDK-Updates möglich  |
+| Kein C# / kein Port / kein HTTP-IPC    | TS-Ökosystem-Examples entfernt            |
 
 ## Plattform-Annahmen (fix)
 
@@ -101,16 +107,16 @@ Node.js+CLI.
 - **BYOK zwingend** (kein GitHub-Copilot-Abo nötig)
 - **Portable Folder** (kopierbar, kein MSI / NSIS)
 - **Build-Umgebung (Dev/CI)**: Node.js v22+, npm v10+, Rust toolchain,
-  .NET SDK 9+, Tauri CLI
+  Tauri CLI
 
 ## Offene Punkte (Architektur)
 
-- **Sidecar-Pattern-Detail**: Tauri spawnt C# direkt, oder C# als
-  externer Daemon via Service? — siehe SPEC-004
-- **IPC-Protokoll**: Tauri-Rust ↔ C# über HTTP (localhost) oder Named
-  Pipe?
+- **Sidecar-Lifecycle**: Tauri 2 `externalBin` (statisch konfiguriert,
+  automatischer Lifecycle) vs. manuelle `tokio::process::Command`-
+  Verwaltung (dynamischer, eigener Restart-Loop) — siehe SPEC-004 §
+  Offene Punkte.
 - **React-Bundle**: Vite-Build mit Node.js zur Build-Zeit akzeptiert
-  (Node.js nur im Dev/CI, nicht im Output)
+  (Node.js nur im Dev/CI, nicht im Output).
 
 ## Quellen
 

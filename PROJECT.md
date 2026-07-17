@@ -19,8 +19,7 @@ Vollständige Architektur-Doku: `specs/SPEC-001-architecture-stack.md`.
 
 | Komponente    | Technologie              | Sprache           |
 |---------------|--------------------------|-------------------|
-| App-Shell     | Tauri 2                  | Rust              |
-| Backend       | GitHub Copilot SDK       | C# (.NET 9)       |
+| App-Shell + Bridge | Tauri 2 + Copilot SDK Rust | Rust         |
 | Subprozess    | Node.js v22+ + Copilot CLI | JavaScript     |
 | Frontend      | CopilotKit React         | TypeScript / JSX  |
 | LLM-Provider  | OpenAI-kompatibel        | n/a               |
@@ -41,6 +40,11 @@ Detaillierte Aufschlüsselung pro Layer in
   `SPEC-004` § Persistenz von SQLite auf JSONL umgeschrieben.
 - **2026-07-17**: Neue `SPEC-006 — Config Dialog` für API Key, Base URL,
   System Prompt und MCP Servers.
+- **2026-07-17**: Architektur-Verschlankung — C#-Backend ersatzlos
+  gestrichen, Tauri-Rust übernimmt Bridge-Logik (Copilot SDK Rust).
+  2 statt 3 Prozesse, kein HTTP-Port für IPC (Stdin/Stdout-Pipes),
+  ~5–15 MB Bundle-Ersparnis netto. SPEC-001/002/004/005/006 +
+  DECISIONS.md umgeschrieben.
 - **Kein Code geschrieben** — Specs dokumentieren ausschließlich die
   geplante Architektur.
 - **Kein Workboard-Board** — wird angelegt, sobald Implementierung startet
@@ -72,8 +76,8 @@ Detaillierte Aufschlüsselung pro Layer in
   Distribution
 - `specs/SPEC-003-byok-configuration.md` — config.json, DPAPI,
   Endpoint-Setup
-- `specs/SPEC-004-backend-csharp-copilot-sdk.md` — C#-Backend mit
-  Copilot SDK .NET
+- `specs/SPEC-004-bridge-tauri-rust.md` — Tauri-Rust Bridge (Copilot
+  SDK Rust, Subprozess-Management, IPC-Methoden)
 - `specs/SPEC-005-frontend-copilotkit-react.md` — Frontend mit
   CopilotKit React
 - `specs/SPEC-006-config-dialog.md` — Konfigurations-Dialog (API Key,

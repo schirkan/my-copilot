@@ -202,7 +202,9 @@ Erweitert SPEC-004 § IPC-Methoden:
 
 - **SPEC-003 § config.json**: Schema um `systemPrompt` (string) und
   `mcpServers` (Array) erweitern.
-- **SPEC-004 § IPC-Methoden**: Tabelle auf die erweiterte
-  Payload-Shape anpassen (siehe oben).
-- **SPEC-002 § Folder-Layout**: Mini-Stale aus dem JSONL-Decision
-  bereinigen (`chat-history.db` → `sessions/{session-id}.jsonl`).
+- ~~**SPEC-004 § IPC-Methoden**: Tabelle auf die erweiterte
+  Payload-Shape anpassen~~ — erledigt in SPEC-004 Rust-Bridge-Rewrite
+  (`systemPrompt` + `mcpServers` sind in der neuen Tabelle enthalten).
+- ~~**SPEC-002 § Folder-Layout**: Mini-Stale aus dem JSONL-Decision
+  bereinigen (`chat-history.db` → `sessions/{session-id}.jsonl`)~~ —
+  erledigt im Cleanup-Commit `1a6d58b`.

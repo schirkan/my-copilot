@@ -85,3 +85,31 @@ Workspace-Context.
   mit ~100–1000 Sessions akzeptabel. Bei Bedarf später Sidecar-Index
   oder Migration zu SQLite.
 - **Reference:** SPEC-004 § Persistenz (in diesem Commit aktualisiert)
+
+### Architektur-Verschlankung — C# weglassen, Tauri-Rust als Bridge
+
+- **Decision:** C#-Backend-Layer wird ersatzlos gestrichen.
+  Tauri-Rust übernimmt die Bridge-Logik (spawnt Copilot CLI als
+  Subprozess, spricht JSON-RPC via Stdin/Stdout-Pipes) und nutzt
+  dafür die Rust-Variante des Copilot SDK. **Kein Port wird für
+  IPC geöffnet** — weder HTTP noch Named Pipe noch TCP.
+- **Reason:** Eine Schicht weniger (2 statt 3 Prozesse), kein
+  HTTP-localhost-Port für IPC nötig (nur OS-Pipes zwischen
+  Tauri-Rust und CLI), ~5–15 MB Bundle-Ersparnis netto (kein
+  .NET AOT-Runtime, aber Tauri-Rust exe wächst um Bridge-Code),
+  eine Sprache weniger im Stack.
+- **Verworfen:**
+  - C# beibehalten (Status quo) — extra Schicht + Port + Bundle
+    ohne klaren Mehrwert.
+  - TS-SDK im Frontend mit „dummem Stream-Bridge" in Tauri-Rust
+    — Rust-Bridge-Code wäre trotzdem nötig, TS-SDK-Logik nur
+    Verdopplung der JSON-RPC-Schicht.
+- **Trade-off:** Rust-Lernkurve (Martin 20+ Jahre .NET, Rust neu).
+  Mitigation: Tauri ist Rust-nativ, große Community, viele
+  Beispiele für genau dieses Subprozess-Pattern.
+- **IPC-Verbindung:** Tauri-Rust ↔ CLI ausschließlich via
+  `tokio::process::Command` + `Stdio::piped()` — kein HTTP, kein
+  Named Pipe, kein TCP-Port.
+- **Reference:** SPEC-001 (Architecture-Update), SPEC-004 (komplett
+  neu als Rust-Bridge, File-Rename), SPEC-002 (Bundle ohne
+  `backend/`-Ordner), SPEC-005 (IPC-Referenzen).

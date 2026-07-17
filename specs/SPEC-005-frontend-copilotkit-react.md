@@ -13,8 +13,8 @@ Tauri-WebView. Es:
 1. Zeigt die **Chat-UI** (Nachrichten, Streaming-Response, Tool-Calls).
 2. Stellt den **BYOK-Config-Screen** für Erstlauf und Updates bereit.
 3. Verwaltet **UI-State** (offene Tabs, Dark/Light, Model-Auswahl).
-4. Kommuniziert mit dem C#-Backend via **Tauri-IPC**
-   (`invoke` / `emit`).
+4. Kommuniziert mit der **Tauri-Rust Bridge** via **Tauri-IPC**
+   (`invoke` / `listen` / `emit`).
 5. Nutzt **CopilotKit-Komponenten** für AI-Chat (Generative UI,
    Tool-UI).
 
@@ -26,7 +26,7 @@ Tauri-WebView. Es:
   Output)
 - **Tailwind CSS** für Styling (kein Bundle-Bloat)
 - **Zustand** für leichten globalen State (kein Redux nötig)
-- **TanStack Query** für C#-Backend-Calls (caching, retry)
+- **TanStack Query** für Tauri-Rust-Bridge-Calls (caching, retry)
 
 ## Komponenten-Hierarchie
 
@@ -179,9 +179,10 @@ function ChatWindow() {
   );
 }
 
-// Runtime-Wrapper: Tauri → C# → Copilot SDK
+// Runtime-Wrapper: Tauri-Rust → Copilot SDK Rust
 const tauriRuntime = {
-  // CopilotKit's RemoteAction-Adapter, der via Tauri-IPC ans C#-Backend geht
+  // CopilotKit's RemoteAction-Adapter, der via Tauri-IPC an die
+  // Tauri-Rust Bridge geht (Stdin/Stdout-JSON-RPC zur Copilot CLI)
   async chat({ messages, tools }) {
     // ... mapped zu api.sendMessage / events.onChunk
   },
@@ -217,8 +218,8 @@ function FileReadTool() {
 - **Lokal**: React `useState` für Form-Inputs, modals, etc.
 - **Global**: Zustand-Store für `currentSessionId`, `theme`,
   `userSettings`
-- **Server-State**: TanStack Query für C#-Backend-Calls (caching,
-  retry)
+- **Server-State**: TanStack Query für Tauri-Rust-Bridge-Calls
+  (caching, retry)
 
 ## Build-Setup (Vite)
 
