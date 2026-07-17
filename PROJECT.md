@@ -39,6 +39,8 @@ Detaillierte Aufschlüsselung pro Layer in
   GitHub Releases).
 - **2026-07-17**: 6. Decision: Persistenz-Format JSONL.
   `SPEC-004` § Persistenz von SQLite auf JSONL umgeschrieben.
+- **2026-07-17**: Neue `SPEC-006 — Config Dialog` für API Key, Base URL,
+  System Prompt und MCP Servers.
 - **Kein Code geschrieben** — Specs dokumentieren ausschließlich die
   geplante Architektur.
 - **Kein Workboard-Board** — wird angelegt, sobald Implementierung startet
@@ -74,6 +76,8 @@ Detaillierte Aufschlüsselung pro Layer in
   Copilot SDK .NET
 - `specs/SPEC-005-frontend-copilotkit-react.md` — Frontend mit
   CopilotKit React
+- `specs/SPEC-006-config-dialog.md` — Konfigurations-Dialog (API Key,
+  Base URL, System Prompt, MCP Servers)
 - `LICENSE` — MIT-Lizenztext
 - `DECISIONS.md` — Architektur- und Projekt-Entscheidungen mit Datum
   und Begründung (on-demand geladen)
@@ -86,5 +90,17 @@ startet (Workboard-Pflicht ab ≥3 Sub-Schritten pro
 
 ## Offene Punkte
 
-Keine. Alle 6 ursprünglichen Punkte geklärt und in `DECISIONS.md`
-dokumentiert.
+**Aus SPEC-006 abgeleitet:**
+
+- System-Prompt-Default: leer vs. mitgelieferter Default?
+- MCP/SystemPrompt-Übergabe-Mechanik an aktuelle Copilot-CLI anpassen
+- MCP-Server-Bundling: Standard-Server mitliefern oder nur User-Config?
+- Hot-Reload vs. Restart für System Prompt / MCP Servers
+- Per-Session-Override für System Prompt / Modell
+- MCP-Server-Templates in der UI
+
+**Spec-Follow-ups (Aufräumarbeiten):**
+
+- SPEC-003 § config.json Schema um `systemPrompt` + `mcpServers` erweitern
+- SPEC-004 § IPC-Methoden Tabelle auf erweiterte Payload-Shape anpassen
+- SPEC-002 § Folder-Layout: `chat-history.db` → `sessions/{session-id}.jsonl`
