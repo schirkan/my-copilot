@@ -34,6 +34,9 @@ Detaillierte Aufschlüsselung pro Layer in
 - **2026-07-17**: Git-Repo eingerichtet (siehe `## Git`) — public auf
   GitHub unter `schirkan/my-copilot`.
 - **2026-07-17**: MIT-Lizenz hinzugefügt (`LICENSE`).
+- **2026-07-17**: 5 Decisions dokumentiert in `DECISIONS.md`
+  (Node.js Build+Runtime, BYOK-only, kein Update, ohne Signing,
+  GitHub Releases).
 - **Kein Code geschrieben** — Specs dokumentieren ausschließlich die
   geplante Architektur.
 - **Kein Workboard-Board** — wird angelegt, sobald Implementierung startet
@@ -70,6 +73,8 @@ Detaillierte Aufschlüsselung pro Layer in
 - `specs/SPEC-005-frontend-copilotkit-react.md` — Frontend mit
   CopilotKit React
 - `LICENSE` — MIT-Lizenztext
+- `DECISIONS.md` — Architektur- und Projekt-Entscheidungen mit Datum
+  und Begründung (on-demand geladen)
 
 ## Workboard
 
@@ -79,15 +84,7 @@ startet (Workboard-Pflicht ab ≥3 Sub-Schritten pro
 
 ## Offene Punkte
 
-- **Build-Umgebung Node.js zur Build-Zeit**: Vite-Build für React-Bundle
-  braucht Node.js im CI/Dev, aber nicht im App-Output. Akzeptiert?
-- **Auth-Flow für Copilot CLI ohne GitHub-OAuth**: BYOK-Modus umgeht
-  OAuth komplett. Bestätigt für v1?
-- **Update-Mechanismus**: portable App, manuelles Update oder Auto-Check
-  gegen GitHub-Releases?
-- **State-Storage-Verschlüsselung**: SQLite in `./data/` mit DPAPI-Schutz?
-  Sensible Chat-History-Daten?
-- **Code-Signing**: `MyCopilot.exe` signieren für SmartScreen-Reputation
-  (sonst Warnhinweis beim Erststart)?
-- **Distribution-Channel**: wo wird das Release später gehostet
-  (GitHub Releases, eigener Server, …)?
+- **State-Storage-Format**: SQLite DB (`./data/chat-history.db`) oder
+  JSONL-Files (eine Datei pro Session in `./data/sessions/{session-id}.jsonl`)?
+  SPEC-004 § Persistenz schreibt aktuell SQLite vor — bei JSONL-Wechsel
+  muss SPEC-004 angepasst werden.
