@@ -53,11 +53,24 @@ Detaillierte Aufschlüsselung pro Layer in
   `npx tauri icon` für Windows/iOS/Android/macOS-Varianten,
   `cargo check` erfolgreich (Finished in 9.44s). Workboard-Karte
   #1 läuft jetzt auf `complete`. Nächste Schritte in Karten #2–#9.
-- **Kein Code geschrieben** *(vor 2026-07-17 M1)* — Specs dokumentierten
-  ausschließlich die geplante Architektur.
-- **Kein Workboard-Board** — wird angelegt, sobald Implementierung startet
-  (Workboard-Pflicht ab ≥3 Sub-Schritten, siehe
-  `projects/PROJECT-RULES.md`).
+- **2026-07-17 (M2 abgeschlossen)**: Tauri-Rust CLI-Bridge implementiert.
+  `src-tauri/src/copilot/{mod,process,bridge}.rs` neu angelegt
+  (Subprozess-Management via `tokio::process::Command` + `Stdio::piped()` +
+  `kill_on_drop` + async stderr-Log, JSON-RPC-2.0-Bridge mit
+  mpsc-Channel-Streaming-Pattern). Cargo.toml erweitert um
+  `tokio` (full), `tokio-stream`, `log`, `env_logger`. `cargo check`
+  exit 0 (2.19s nach erstem Compile). **Kein Port, kein HTTP** — Pipes
+  only (siehe DECISIONS.md § Architektur-Verschlankung).
+- **2026-07-17 (M3 abgeschlossen)**: Tauri-IPC-API definiert. 7 Tauri-
+  Commands (`chat_send`, `chat_cancel`, `config_get`, `config_set`,
+  `config_test`, `process_health`, `process_restart`) +
+  `AppState`-Struct (`exe_dir`, `config: Mutex<Option<ByokConfig>>`,
+  `bridge: Mutex<Option<CopilotBridge>>`, `healthy: AtomicBool`)
+  + `ConfigDto` (Frontend-DTO mit systemPrompt + mcpServers bereits
+  enthalten). Cargo.toml erweitert um `reqwest` (json + rustls-tls).
+  `cargo check` exit 0 (2.69s nach Compile-Cache). lib.rs registriert
+  alle 7 Commands via `tauri::generate_handler![]` + managet AppState
+  im setup-Hook.
 
 ## Git
 
@@ -101,13 +114,19 @@ Detaillierte Aufschlüsselung pro Layer in
 **Worktree-Mode:** nein (direkt auf `main`)
 **Eingerichtet am:** 2026-07-17
 
-**Stats:** 9 Karten, 0 todo · 0 ready · 0 running · 0 blocked · 2 complete
+**Stats:** 9 Karten, 0 todo · 0 ready · 0 running · 0 blocked · 3 complete
 
 ### Karte-Status-Verlauf
 
 - **2026-07-17 23:25** Karte #1 (Tauri-Skeleton) claimed → running
 - **2026-07-17 23:35** Karte #1 verification: `cargo check` ✅ (9.44s)
 - **2026-07-17 23:37** Karte #1 complete (Commit `f95dbf2`)
+- **2026-07-17 23:39** Karte #2 (CLI-Bridge) claimed → running
+- **2026-07-17 23:45** Karte #2 verification: `cargo check` ✅ (2.19s)
+- **2026-07-17 23:47** Karte #2 complete (Commit `90052a5`)
+- **2026-07-17 23:48** Karte #3 (IPC-API) claimed → running
+- **2026-07-17 23:50** Karte #3 verification: `cargo check` ✅ (2.69s)
+- **2026-07-17 23:51** Karte #3 complete (Commit pending)
 - **2026-07-17 23:39** Karte #2 (CLI-Bridge) claimed → running
 - **2026-07-17 23:45** Karte #2 verification: `cargo check` ✅ (2.19s)
 - **2026-07-17 23:46** Karte #2 complete (Commit pending)

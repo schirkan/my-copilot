@@ -7,5 +7,5 @@
 pub mod bridge;
 pub mod process;
 
-pub use bridge::{ByokConfig, ChatChunk, CopilotBridge, JsonRpcMessage, McpServer};
+pub use bridge::{spawn_bridge, ByokConfig, ChatChunk, CopilotBridge, JsonRpcMessage, McpServer};
 pub use process::{CopilotCliProcess, ProcessError};
