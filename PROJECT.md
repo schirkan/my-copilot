@@ -101,20 +101,23 @@ Detaillierte Aufschlüsselung pro Layer in
 **Worktree-Mode:** nein (direkt auf `main`)
 **Eingerichtet am:** 2026-07-17
 
-**Stats:** 9 Karten, 0 todo · 0 ready · 0 running · 0 blocked · 1 complete
+**Stats:** 9 Karten, 0 todo · 0 ready · 0 running · 0 blocked · 2 complete
 
 ### Karte-Status-Verlauf
 
 - **2026-07-17 23:25** Karte #1 (Tauri-Skeleton) claimed → running
 - **2026-07-17 23:35** Karte #1 verification: `cargo check` ✅ (9.44s)
-- **2026-07-17 23:37** Karte #1 complete (siehe Commit-Log unten)
+- **2026-07-17 23:37** Karte #1 complete (Commit `f95dbf2`)
+- **2026-07-17 23:39** Karte #2 (CLI-Bridge) claimed → running
+- **2026-07-17 23:45** Karte #2 verification: `cargo check` ✅ (2.19s)
+- **2026-07-17 23:46** Karte #2 complete (Commit pending)
 
 ### Karten-Liste
 
 | # | Karte | Priority | Status | Labels | Card-ID |
 |---|---|---|---|---|---|
 | 1 | Tauri-Skeleton aufsetzen (Cargo.toml, src-tauri/, Hello-World) | high | **complete** | setup, tauri, milestone-1 | `a15846ee-201d-4a96-a2c7-48bcd47a700f` |
-| 2 | Tauri-Rust CLI-Bridge (Subprozess + JSON-RPC via Stdin/Stdout) | high | todo | bridge, rust, subprocess, milestone-2 | `26372b1f-1341-48fe-86d3-fad019be2305` |
+| 2 | Tauri-Rust CLI-Bridge (Subprozess + JSON-RPC via Stdin/Stdout) | high | **complete** | bridge, rust, subprocess, milestone-2 | `26372b1f-1341-48fe-86d3-fad019be2305` |
 | 3 | Tauri-IPC-API definieren (Commands + Events + Streaming) | high | todo | ipc, tauri, milestone-2 | `9fb7796f-dcc6-47d1-892b-98a9849e140f` |
 | 4 | Config-Management (config.json + DPAPI für apiKey) | high | todo | config, rust, milestone-3 | `cff6cacd-cb5e-4700-981a-e915aef527a7` |
 | 5 | BYOK-Config-Dialog UI (React + Tauri-IPC) | high | todo | ui, config, react, milestone-3 | `fca83a1a-2c4b-48e6-a13f-6493d52d7c06` |
