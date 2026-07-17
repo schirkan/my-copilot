@@ -88,9 +88,45 @@ Detaillierte Aufschlüsselung pro Layer in
 
 ## Workboard
 
-_Noch nicht eingerichtet._ Wird angelegt, sobald die Implementierung
-startet (Workboard-Pflicht ab ≥3 Sub-Schritten pro
-`projects/PROJECT-RULES.md`).
+**Board:** `my-copilot`
+**Default-Workspace:** `C:\Users\Admin\.openclaw\workspace\projects\my-copilot` (Branch `main`)
+**Worktree-Mode:** nein (direkt auf `main`)
+**Eingerichtet am:** 2026-07-17
+
+**Stats:** 9 Karten, alle `todo` (0 ready · 0 running · 0 blocked · 0 complete)
+
+### Karten-Liste
+
+| # | Karte | Priority | Status | Labels | Card-ID |
+|---|---|---|---|---|---|
+| 1 | Tauri-Skeleton aufsetzen (Cargo.toml, src-tauri/, Hello-World) | high | todo | setup, tauri, milestone-1 | `a15846ee-201d-4a96-a2c7-48bcd47a700f` |
+| 2 | Tauri-Rust CLI-Bridge (Subprozess + JSON-RPC via Stdin/Stdout) | high | todo | bridge, rust, subprocess, milestone-2 | `26372b1f-1341-48fe-86d3-fad019be2305` |
+| 3 | Tauri-IPC-API definieren (Commands + Events + Streaming) | high | todo | ipc, tauri, milestone-2 | `9fb7796f-dcc6-47d1-892b-98a9849e140f` |
+| 4 | Config-Management (config.json + DPAPI für apiKey) | high | todo | config, rust, milestone-3 | `cff6cacd-cb5e-4700-981a-e915aef527a7` |
+| 5 | BYOK-Config-Dialog UI (React + Tauri-IPC) | high | todo | ui, config, react, milestone-3 | `fca83a1a-2c4b-48e6-a13f-6493d52d7c06` |
+| 6 | JSONL-Chat-History (Sessions, Append-only, Read) | normal | todo | persistence, jsonl, rust, milestone-4 | `58b4d704-ce27-46a0-adf8-2b2dd7ad1cc7` |
+| 7 | Chat-UI mit CopilotKit (Streaming + Tool-Calls) | normal | todo | ui, chat, copilotkit, react, milestone-4 | `ea56fa8a-d65d-4768-ae2c-ef31d3a7cf94` |
+| 8 | End-to-End-Smoke-Test (manuelles Test-Protokoll) | high | todo | test, e2e, milestone-5 | `291b9b51-2106-44a7-ae40-189079bf7bd1` |
+| 9 | Build-Pipeline + Distribution (ZIP + GitHub Release) | low | todo | build, distribution, milestone-6 | `54e45cbf-a3ed-4916-bcf8-49017f8dd7e6` |
+
+### Milestone-Übersicht
+
+- **M1** Tauri-Skeleton → Karte #1
+- **M2** Bridge + IPC → Karten #2, #3
+- **M3** Config + UI → Karten #4, #5
+- **M4** Chat → Karten #6, #7
+- **M5** Test → Karte #8
+- **M6** Build + Distribution → Karte #9
+
+### Lifecycle-Workflow
+
+Karten liegen in `todo`. Wenn wir anfangen zu arbeiten:
+1. `workboard_specify` — Karte klären (Acceptance-Kriterien, ggf. Decompose)
+2. `workboard_dispatch` — Karte auf `ready` setzen
+3. `workboard_claim` — Claim-Token holen (sperrt die Karte für diesen Agent)
+4. `workboard_heartbeat` — während der Arbeit (verhindert stale)
+5. `workboard_proof` — Test-Ergebnisse / Screenshots anhängen
+6. `workboard_complete` — Summary + Artifact-Links
 
 ## Offene Punkte
 
