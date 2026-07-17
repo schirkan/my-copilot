@@ -68,3 +68,20 @@ Workspace-Context.
   Infrastruktur nötig.
 - **Verworfen:** Eigener Server / CDN — Overhead für v1, frühestens v2.
 - **Reference:** SPEC-002 § Distribution
+
+### Persistenz-Format
+
+- **Decision:** JSONL, eine Datei pro Session unter
+  `./data/sessions/{session-id}.jsonl`. Eine JSON-Zeile pro Message mit
+  Schema `{id, request_id, role, content, ts, model, tokens}`.
+- **Reason:** Kein Native-Dep (kein `Microsoft.Data.Sqlite`), kein
+  Schema-Migration-Overhead, human-readable und easy Backup/Inspect,
+  append-only robust gegen Teil-Schreibfehler, per-Session-Files für
+  einfaches Löschen/Restore einzelner Sessions.
+- **Verworfen:** SQLite (Native-Dep + Schema-Migrations für v1-Iterationen
+  zu viel Overhead), pure txt-Dateien (verlieren Metadaten wie
+  Timestamps, Models, Tokens).
+- **Trade-off:** Kein effizientes Querying (Full-Read für Stats). Für v1
+  mit ~100–1000 Sessions akzeptabel. Bei Bedarf später Sidecar-Index
+  oder Migration zu SQLite.
+- **Reference:** SPEC-004 § Persistenz (in diesem Commit aktualisiert)

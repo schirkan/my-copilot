@@ -125,13 +125,19 @@ public class CopilotService {
 
 ## Persistenz
 
-- **Chat-History**: SQLite in `./data/chat-history.db`
-  - Schema: `(id, request_id, role, content, ts, model, tokens)`
-  - WAL-Mode für Concurrency
-  - Verschlüsselung: nicht v1 (SQLite selbst unverschlüsselt, aber in
-    User-Ordner → OK für lokale Privacy)
+- **Chat-History**: JSONL, eine Datei pro Session unter
+  `./data/sessions/{session-id}.jsonl`
+  - Schema pro Zeile: `{id, request_id, role, content, ts, model, tokens}`
+  - Append-only (robust gegen Teil-Schreibfehler, einfache Implementierung)
+  - Human-readable (Notepad/VSCode reicht für Inspection)
+  - Kein Native-Dep (kein `Microsoft.Data.Sqlite`)
+  - Per-Session-Files = einzelne Sessions einfach löschbar/restorbar
 - **Logs**: `./data/logs/app-YYYY-MM-DD.log` (rolling, max 10 MB / File)
 - **Cache**: `./data/cache/` für Tool-Call-Results, Embeddings etc.
+
+**Trade-off:** Kein effizientes Querying (Full-Read für Stats/Filter).
+Für v1 mit ~100–1000 Sessions OK. Falls später nötig: Sidecar-Index-File
+oder Migration zu SQLite.
 
 ## Fehlerbehandlung
 

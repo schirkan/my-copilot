@@ -37,6 +37,8 @@ Detaillierte Aufschlüsselung pro Layer in
 - **2026-07-17**: 5 Decisions dokumentiert in `DECISIONS.md`
   (Node.js Build+Runtime, BYOK-only, kein Update, ohne Signing,
   GitHub Releases).
+- **2026-07-17**: 6. Decision: Persistenz-Format JSONL.
+  `SPEC-004` § Persistenz von SQLite auf JSONL umgeschrieben.
 - **Kein Code geschrieben** — Specs dokumentieren ausschließlich die
   geplante Architektur.
 - **Kein Workboard-Board** — wird angelegt, sobald Implementierung startet
@@ -84,7 +86,5 @@ startet (Workboard-Pflicht ab ≥3 Sub-Schritten pro
 
 ## Offene Punkte
 
-- **State-Storage-Format**: SQLite DB (`./data/chat-history.db`) oder
-  JSONL-Files (eine Datei pro Session in `./data/sessions/{session-id}.jsonl`)?
-  SPEC-004 § Persistenz schreibt aktuell SQLite vor — bei JSONL-Wechsel
-  muss SPEC-004 angepasst werden.
+Keine. Alle 6 ursprünglichen Punkte geklärt und in `DECISIONS.md`
+dokumentiert.
