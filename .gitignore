@@ -1,0 +1,36 @@
+# Build-Outputs
+node_modules/
+dist/
+target/
+bin/
+obj/
+
+# Tauri
+src-tauri/target/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Secrets (BYOK-Config, Keys)
+config.json
+*.key
+*.pem
+
+# User-Daten (lokal, nicht in Git)
+data/
+
+# Logs
+*.log
+logs/
+
+# Environment
+.env
+.env.local
