@@ -33,6 +33,7 @@ Detaillierte Aufschlüsselung pro Layer in
 - **2026-07-17**: Projekt angelegt — Folder, PROJECT.md, 5 Specs.
 - **2026-07-17**: Git-Repo eingerichtet (siehe `## Git`) — public auf
   GitHub unter `schirkan/my-copilot`.
+- **2026-07-17**: MIT-Lizenz hinzugefügt (`LICENSE`).
 - **Kein Code geschrieben** — Specs dokumentieren ausschließlich die
   geplante Architektur.
 - **Kein Workboard-Board** — wird angelegt, sobald Implementierung startet
@@ -50,7 +51,7 @@ Detaillierte Aufschlüsselung pro Layer in
 | **Default-Branch**      | `main`                                                            |
 | **Eingerichtet am**     | 2026-07-17                                                        |
 | **`.gitignore`-Status** | vorhanden                                                         |
-| **Lizenz**              | _noch keine_ — vor erstem Release klären (MIT vs. Apache-2.0)     |
+| **Lizenz**              | MIT (siehe `LICENSE`)                                            |
 
 > Hinweis: Der OpenClaw-Workspace-Root (`C:\Users\Admin\.openclaw\workspace`)
 > ist ein separates Git-Repo. `projects/my-copilot/` ist dort **nicht**
@@ -68,6 +69,7 @@ Detaillierte Aufschlüsselung pro Layer in
   Copilot SDK .NET
 - `specs/SPEC-005-frontend-copilotkit-react.md` — Frontend mit
   CopilotKit React
+- `LICENSE` — MIT-Lizenztext
 
 ## Workboard
 
@@ -77,7 +79,6 @@ startet (Workboard-Pflicht ab ≥3 Sub-Schritten pro
 
 ## Offene Punkte
 
-- **Lizenz**: MIT vs. Apache-2.0 vor erstem Release klären.
 - **Build-Umgebung Node.js zur Build-Zeit**: Vite-Build für React-Bundle
   braucht Node.js im CI/Dev, aber nicht im App-Output. Akzeptiert?
 - **Auth-Flow für Copilot CLI ohne GitHub-OAuth**: BYOK-Modus umgeht
