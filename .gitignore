@@ -7,6 +7,13 @@ obj/
 
 # Tauri
 src-tauri/target/
+src-tauri/icon-source.*
+# iOS/Android-Icon-Varianten (Zielplattform ist Windows-only,
+# werden in Card #9 ggf. bereinigt)
+src-tauri/icons/ios/
+src-tauri/icons/android/
+src-tauri/icons/Square*.png
+src-tauri/icons/StoreLogo.png
 
 # IDE
 .vscode/

@@ -1,0 +1,1 @@
+{"default":{"identifier":"default","description":"Default capabilities for the main window (skeleton — wird in späteren Karten erweitert)","local":true,"windows":["main"],"permissions":["core:default"]}}

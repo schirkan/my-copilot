@@ -45,8 +45,16 @@ Detaillierte Aufschlüsselung pro Layer in
   2 statt 3 Prozesse, kein HTTP-Port für IPC (Stdin/Stdout-Pipes),
   ~5–15 MB Bundle-Ersparnis netto. SPEC-001/002/004/005/006 +
   DECISIONS.md umgeschrieben.
-- **Kein Code geschrieben** — Specs dokumentieren ausschließlich die
-  geplante Architektur.
+- **2026-07-17 (M1 abgeschlossen)**: Tauri-Skeleton aufgesetzt.
+  15 Source-Files (Cargo.toml, build.rs, tauri.conf.json, main.rs,
+  lib.rs, capabilities/default.json, package.json, src/index.html +
+  main.tsx + App.tsx + App.css + vite.config.ts + tsconfig.json +
+  tsconfig.node.json + index.css). `npm install` (619 packages),
+  `npx tauri icon` für Windows/iOS/Android/macOS-Varianten,
+  `cargo check` erfolgreich (Finished in 9.44s). Workboard-Karte
+  #1 läuft jetzt auf `complete`. Nächste Schritte in Karten #2–#9.
+- **Kein Code geschrieben** *(vor 2026-07-17 M1)* — Specs dokumentierten
+  ausschließlich die geplante Architektur.
 - **Kein Workboard-Board** — wird angelegt, sobald Implementierung startet
   (Workboard-Pflicht ab ≥3 Sub-Schritten, siehe
   `projects/PROJECT-RULES.md`).
@@ -93,13 +101,19 @@ Detaillierte Aufschlüsselung pro Layer in
 **Worktree-Mode:** nein (direkt auf `main`)
 **Eingerichtet am:** 2026-07-17
 
-**Stats:** 9 Karten, alle `todo` (0 ready · 0 running · 0 blocked · 0 complete)
+**Stats:** 9 Karten, 0 todo · 0 ready · 0 running · 0 blocked · 1 complete
+
+### Karte-Status-Verlauf
+
+- **2026-07-17 23:25** Karte #1 (Tauri-Skeleton) claimed → running
+- **2026-07-17 23:35** Karte #1 verification: `cargo check` ✅ (9.44s)
+- **2026-07-17 23:37** Karte #1 complete (siehe Commit-Log unten)
 
 ### Karten-Liste
 
 | # | Karte | Priority | Status | Labels | Card-ID |
 |---|---|---|---|---|---|
-| 1 | Tauri-Skeleton aufsetzen (Cargo.toml, src-tauri/, Hello-World) | high | todo | setup, tauri, milestone-1 | `a15846ee-201d-4a96-a2c7-48bcd47a700f` |
+| 1 | Tauri-Skeleton aufsetzen (Cargo.toml, src-tauri/, Hello-World) | high | **complete** | setup, tauri, milestone-1 | `a15846ee-201d-4a96-a2c7-48bcd47a700f` |
 | 2 | Tauri-Rust CLI-Bridge (Subprozess + JSON-RPC via Stdin/Stdout) | high | todo | bridge, rust, subprocess, milestone-2 | `26372b1f-1341-48fe-86d3-fad019be2305` |
 | 3 | Tauri-IPC-API definieren (Commands + Events + Streaming) | high | todo | ipc, tauri, milestone-2 | `9fb7796f-dcc6-47d1-892b-98a9849e140f` |
 | 4 | Config-Management (config.json + DPAPI für apiKey) | high | todo | config, rust, milestone-3 | `cff6cacd-cb5e-4700-981a-e915aef527a7` |

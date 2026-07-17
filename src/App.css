@@ -1,0 +1,81 @@
+.container {
+  margin: 0 auto;
+  padding: 2.5rem 2rem;
+  max-width: 800px;
+  text-align: center;
+}
+
+.hero {
+  margin-bottom: 2rem;
+}
+
+.hero h1 {
+  font-size: 2.5rem;
+  margin-bottom: 0.5rem;
+  color: #4ec9b0;
+}
+
+.subtitle {
+  font-size: 1.05rem;
+  color: #aaa;
+  margin-bottom: 0.25rem;
+}
+
+.version {
+  font-size: 0.85rem;
+  color: #666;
+  font-family: ui-monospace, "Cascadia Code", "Fira Code", monospace;
+}
+
+.card {
+  padding: 1.5rem 1.75rem;
+  border: 1px solid #2a2a2a;
+  border-radius: 8px;
+  background: #1e1e1e;
+  margin-bottom: 1.25rem;
+  text-align: left;
+}
+
+.card h2 {
+  margin-top: 0;
+  color: #4ec9b0;
+  font-size: 1.25rem;
+}
+
+.card h3 {
+  margin-top: 0;
+  color: #569cd6;
+  font-size: 1.1rem;
+}
+
+.card ul {
+  margin: 0.5rem 0 0 0;
+  padding-left: 1.25rem;
+}
+
+.card li {
+  margin: 0.25rem 0;
+  color: #ccc;
+  font-size: 0.95rem;
+}
+
+.card button {
+  margin-top: 0.75rem;
+  padding: 0.5rem 1rem;
+  font-size: 1rem;
+  background: #4ec9b0;
+  color: #1a1a1a;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.card button:hover {
+  background: #6fdbbf;
+}
+
+.footer {
+  margin-top: 2rem;
+  color: #666;
+}
