@@ -153,7 +153,7 @@ Detaillierte Aufschlüsselung pro Layer in
 **Worktree-Mode:** nein (direkt auf `main`)
 **Eingerichtet am:** 2026-07-17
 
-**Stats:** 9 Karten, 0 todo · 0 ready · 0 running · 0 blocked · 7 complete
+**Stats:** 9 Karten, 0 todo · 0 ready · 0 running · 0 blocked · 8 complete
 
 ### Karte-Status-Verlauf
 
@@ -177,7 +177,10 @@ Detaillierte Aufschlüsselung pro Layer in
 - **2026-07-18 11:46** Karte #6 complete (Commit `44aa9fc`)
 - **2026-07-18 11:50** Karte #7 (Chat-UI mit CopilotKit) claimed → running
 - **2026-07-18 11:55** Karte #7 verification: `tsc -p src/tsconfig.json` ✅
-- **2026-07-18 11:56** Karte #7 complete (Commit pending)
+- **2026-07-18 11:56** Karte #7 complete (Commit `215e129`)
+- **2026-07-18 12:00** Karte #8 (E2E-Smoke-Test) claimed → running
+- **2026-07-18 12:05** Karte #8 verification: Test-Protokoll geschrieben (kein Cargo/TSC, Doku-only)
+- **2026-07-18 12:06** Karte #8 complete (Commit pending)
 
 ### Karten-Liste
 
@@ -190,7 +193,7 @@ Detaillierte Aufschlüsselung pro Layer in
 | 5 | BYOK-Config-Dialog UI (React + Tauri-IPC) | high | **complete** | ui, config, react, milestone-3 | `fca83a1a-2c4b-48e6-a13f-6493d52d7c06` |
 | 6 | JSONL-Chat-History (Sessions, Append-only, Read) | normal | **complete** | persistence, jsonl, rust, milestone-4 | `58b4d704-ce27-46a0-adf8-2b2dd7ad1cc7` |
 | 7 | Chat-UI mit CopilotKit (Streaming + Tool-Calls) | normal | **complete** | ui, chat, copilotkit, react, milestone-4 | `ea56fa8a-d65d-4768-ae2c-ef31d3a7cf94` |
-| 8 | End-to-End-Smoke-Test (manuelles Test-Protokoll) | high | todo | test, e2e, milestone-5 | `291b9b51-2106-44a7-ae40-189079bf7bd1` |
+| 8 | End-to-End-Smoke-Test (manuelles Test-Protokoll) | high | **complete** | test, e2e, milestone-5 | `291b9b51-2106-44a7-ae40-189079bf7bd1` |
 | 9 | Build-Pipeline + Distribution (ZIP + GitHub Release) | low | todo | build, distribution, milestone-6 | `54e45cbf-a3ed-4916-bcf8-49017f8dd7e6` |
 
 ### Milestone-Übersicht
