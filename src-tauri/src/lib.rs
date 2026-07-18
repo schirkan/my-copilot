@@ -1,4 +1,5 @@
 pub mod commands;
+pub mod config;
 pub mod copilot;
 pub mod state;
 
@@ -23,8 +24,44 @@ pub fn run() {
                 .and_then(|p| p.parent().map(|p| p.to_path_buf()))
                 .unwrap_or_else(|| std::path::PathBuf::from("."));
             let mut state = AppState::default();
-            state.exe_dir = exe_dir;
+            state.exe_dir = exe_dir.clone();
             log::info!("AppState initialisiert: exe_dir = {:?}", state.exe_dir);
+
+            // Config aus config.json laden (v1: Klartext, v2-TODO: DPAPI-entschlüsselt)
+            match config::load_config(&exe_dir) {
+                Ok(Some(disk_cfg)) => {
+                    match disk_cfg.to_byok_config() {
+                        Ok(byok) => {
+                            log::info!(
+                                "config.json geladen: endpoint={}, model={}",
+                                byok.endpoint,
+                                byok.model
+                            );
+                            state.config = tokio::sync::Mutex::new(Some(byok));
+                        }
+                        Err(e) => {
+                            log::error!(
+                                "config.json parsen fehlgeschlagen: {}",
+                                e
+                            );
+                            log::warn!(
+                                "App startet ohne Config — Erstlauf-Dialog \
+                                 wird im Frontend gezeigt"
+                            );
+                        }
+                    }
+                }
+                Ok(None) => {
+                    log::info!(
+                        "keine config.json gefunden — Erstlauf-Dialog \
+                         wird im Frontend gezeigt"
+                    );
+                }
+                Err(e) => {
+                    log::error!("config.json laden fehlgeschlagen: {}", e);
+                }
+            }
+
             app.manage(state);
             Ok(())
         })

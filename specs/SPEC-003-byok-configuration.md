@@ -92,7 +92,9 @@ wir bei einer BYOK-Config ja auch nicht.
    - Modell-Auswahl (Dropdown mit Vorschlägen je nach Endpoint-Typ)
    - Test-Button: schickt `GET /v1/models` an den Endpoint, prüft Auth.
 3. User trägt Daten ein, klickt **Speichern & Testen**.
-4. App verschlüsselt Key via DPAPI, schreibt `config.json`.
+4. App schreibt `apiKey` im Klartext in `config.json` (v1, siehe §
+   Encryption). In v2 wird DPAPI/OS-Keychain vor dem Schreiben
+   verschlüsselt (siehe DECISIONS.md § Config-Storage-v1-plaintext).
 5. App startet den normalen Chat-Workflow.
 
 ## Update-Flow (Endpoint-Wechsel)

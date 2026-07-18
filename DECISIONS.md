@@ -113,3 +113,36 @@ Workspace-Context.
 - **Reference:** SPEC-001 (Architecture-Update), SPEC-004 (komplett
   neu als Rust-Bridge, File-Rename), SPEC-002 (Bundle ohne
   `backend/`-Ordner), SPEC-005 (IPC-Referenzen).
+
+### Config-Storage: v1 Klartext, v2 DPAPI-TODO
+
+- **Decision:** v1 speichert den `apiKey` in `config.json` als
+  Klartext (UTF-8 String, kein Encoding). Eine echte
+  Verschlüsselung (DPAPI auf Windows, Keychain auf macOS,
+  Secret Service auf Linux) wird in v2 nachgerüstet.
+- **Reason:** „Keep it simple" für v1 (Martins Direktive 2026-07-18):
+  Single-User, Personal-Tool, keine Compliance-Anforderung für
+  Encryption. Eine Windows-`dpapi.rs`-Implementation in v1 hätte
+  FFI-Path-Mismatch-Risiken zwischen Crate-Versionen
+  mitgebracht (siehe Commit-Versuche vor diesem hier). Klartext
+  spart eine `windows`-crate-Dependency und reduziert die
+  Build-Komplexität.
+- **Verworfen für v1:**
+  - DPAPI via `windows`-Crate — `CRYPT_DATA_BLOB`-Struct
+    wandert zwischen Versionen (v0.58 fehlt am erwarteten Pfad),
+    API-Signatur-Drift (BOOL → `Result<(), Error>`). v1-Timebudget
+    zu kurz.
+  - Master-Key aus Quellcode im Binary — Security-Theater.
+- **Trade-off:** Bei physischem Zugriff auf den Rechner unter
+  dem User-Account kann der apiKey aus `config.json` im Klartext
+  gelesen werden. Akzeptabel für Single-User-Personal-Tool.
+- **v2-Plan:** `keyring`-Crate für plattformübergreifende
+  Secret-Storage (Windows-Credential-Manager → DPAPI-Wrapper,
+  macOS-Keychain, Linux-Secret-Service). Migrations-Pfad ist
+  in-place (v1-Klartext → v2-verschlüsselt beim ersten Start
+  nach Update).
+- **Reference:** SPEC-003 (`endpoint.apiKey` statt
+  `apiKeyCipher`), Card #4 Implementation im Tauri-Rust-Bridge-
+  Schritt. `src-tauri/src/config/dpapi.rs` enthält einen trivialen
+  utf8-Passthrough, der in v2 durch eine echte Implementation
+  ersetzt wird ohne API-Änderung für Caller.

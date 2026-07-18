@@ -61,14 +61,19 @@ pub async fn config_set(
     state: State<'_, AppState>,
 ) -> Result<(), String> {
     let byok: ByokConfig = config.into();
-    *state.config.lock().await = Some(byok);
-    log::info!("Config gesetzt (apiKey-Länge: {} Zeichen)", state
-        .config
-        .lock()
-        .await
-        .as_ref()
-        .map(|c| c.api_key.len())
-        .unwrap_or(0));
+    let api_key_len = byok.api_key.len();
+    *state.config.lock().await = Some(byok.clone());
+
+    // Persist nach config.json (v1: Klartext, v2-TODO: DPAPI)
+    let exe_dir = state.exe_dir.clone();
+    let disk_cfg = crate::config::Config::from_byok_config(&byok)
+        .map_err(|e| format!("Config::from_byok_config: {}", e))?;
+    crate::config::save_config(&exe_dir, &disk_cfg)
+        .map_err(|e| format!("save_config: {}", e))?;
+    log::info!(
+        "Config gesetzt + config.json gespeichert (apiKey-Länge: {} Zeichen, v1 plaintext)",
+        api_key_len
+    );
     Ok(())
 }
 
