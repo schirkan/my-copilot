@@ -37,9 +37,10 @@ jobs:
         run: npm ci
 
       - name: Install npm dependencies (Copilot CLI)
+        shell: bash
         run: |
           cd src-tauri/copilot-cli 2>/dev/null || mkdir -p src-tauri/copilot-cli
-          npm init -y >/dev/null 2>&1 || true
+          [ -f package.json ] || npm init -y >/dev/null 2>&1
           npm install @github/copilot-cli 2>&1 | tail -5 || echo "copilot-cli install failed (non-blocking for build)"
 
       - name: Build Tauri app (produces MyCopilot.exe)

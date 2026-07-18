@@ -192,7 +192,7 @@ Detaillierte Aufschlüsselung pro Layer in
 | 1 | Tauri-Skeleton aufsetzen (Cargo.toml, src-tauri/, Hello-World) | high | **complete** | setup, tauri, milestone-1 | `a15846ee-201d-4a96-a2c7-48bcd47a700f` |
 | 2 | Tauri-Rust CLI-Bridge (Subprozess + JSON-RPC via Stdin/Stdout) | high | **complete** | bridge, rust, subprocess, milestone-2 | `26372b1f-1341-48fe-86d3-fad019be2305` |
 | 3 | Tauri-IPC-API definieren (Commands + Events + Streaming) | high | todo | ipc, tauri, milestone-2 | `9fb7796f-dcc6-47d1-892b-98a9849e140f` |
-| 4 | Config-Management (config.json, v1 Klartext + v2-DPAPI-TODO) | high | **complete** | config, rust, milestone-3 | `cff6cacd-cb5e-4700-981a-e915aef527a7` |
+| 4 | Config-Management (config.json, v1 Klartext + v3-DPAPI-TODO) | high | **complete** | config, rust, milestone-3 | `cff6cacd-cb5e-4700-981a-e915aef527a7` |
 | 5 | BYOK-Config-Dialog UI (React + Tauri-IPC) | high | **complete** | ui, config, react, milestone-3 | `fca83a1a-2c4b-48e6-a13f-6493d52d7c06` |
 | 6 | JSONL-Chat-History (Sessions, Append-only, Read) | normal | **complete** | persistence, jsonl, rust, milestone-4 | `58b4d704-ce27-46a0-adf8-2b2dd7ad1cc7` |
 | 7 | Chat-UI mit CopilotKit (Streaming + Tool-Calls) | normal | **complete** | ui, chat, copilotkit, react, milestone-4 | `ea56fa8a-d65d-4768-ae2c-ef31d3a7cf94` |
@@ -225,9 +225,14 @@ Karten liegen in `todo`. Wenn wir anfangen zu arbeiten:
 - System-Prompt-Default: leer vs. mitgelieferter Default?
 - MCP/SystemPrompt-Übergabe-Mechanik an aktuelle Copilot-CLI anpassen
 - MCP-Server-Bundling: Standard-Server mitliefern oder nur User-Config?
-- Hot-Reload vs. Restart für System Prompt / MCP Servers
+- Hot-Reload vs. Restart für System Prompt / MCP Servers *(v3-TODO)*
 - Per-Session-Override für System Prompt / Modell
 - MCP-Server-Templates in der UI
+
+**v3-Sicherheits-/Distribution-Features** *(Martins Direktive 2026-07-18 11:41:20)*:
+- **Code-Signing** — EV-Code-Signing-Zertifikat kaufen + `signtool.exe` in CI-Pipeline — siehe DECISIONS.md
+- **Auto-Update-Mechanismus** — GitHub-Releases-Checker oder Squirrel/Sparkle-Wrapper — siehe DECISIONS.md
+- **DPAPI-Verschlüsselung** — `keyring`-Crate (Windows Credential Manager → DPAPI, macOS-Keychain, Linux-Secret-Service) — siehe DECISIONS.md
 
 **Spec-Follow-ups (Aufräumarbeiten):**
 

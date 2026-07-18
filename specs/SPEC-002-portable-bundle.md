@@ -119,15 +119,21 @@ let mut child = Command::new(&node_exe)
 - **Versionierung**: SemVer (`MAJOR.MINOR.PATCH`), aktuelle Version
   in `Cargo.toml`, `*.csproj`, `package.json` synchron halten.
 - **Update-Kanal**: manuelles Re-Download via GitHub-Releases
-  (Auto-Update als v2-Feature, siehe Offene Punkte).
+  (Auto-Update als v3-Feature, siehe Offene Punkte).
 
 ## Offene Punkte
 
 - **Code-Signing**: Signieren des `MyCopilot.exe` für SmartScreen-
-  Reputation (sonst Warnhinweis beim Erststart).
+  Reputation (sonst Warnhinweis beim Erststart). **v3-TODO**: EV-Code-
+  Signing-Zertifikat kaufen (DigiCert/Sectigo/GlobalSign), in
+  GitHub-Secrets speichern, `signtool.exe`-Aufruf in CI-Pipeline
+  einbauen.
 - **Auto-Update-Mechanismus**: portable Apps können nicht OS-auto-
   updaten — manuelles Re-Download oder Custom-Updater (z. B. Squirrel-
-  ähnlich) einbauen?
+  ähnlich) einbauen? **v3-TODO**: GitHub-Releases-Checker mit manueller
+  Bestätigung oder Squirrel/Sparkle-Wrapper. Zusammen mit DPAPI und
+  Code-Signing als zusammengehörige Distribution-/Security-Features in
+  v3.
 - **Backup-Strategie**: User kopiert den Folder — was, wenn die Source-
   Folder verschoben/gelöscht wird? Empfehlung: User-Daten in `./data/`
   gehören zum Folder, also mitkopieren.

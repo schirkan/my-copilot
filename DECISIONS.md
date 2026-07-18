@@ -50,6 +50,10 @@ Workspace-Context.
   frühestens v2 wenn überhaupt.
 - **Trade-off:** User muss selbst updaten — aber Folder bleibt kopierbar
   und Stateless.
+- **v3-TODO:** Auto-Update-Mechanismus (z. B. GitHub-Releases-Checker
+  mit manueller Bestätigung, oder Squirrel/Sparkle-Wrapper). Erst
+  sinnvoll wenn mehrere Versionen zirkulieren und User den
+  Update-Pfad nicht jedes Mal manuell prüfen sollen.
 
 ### Code-Signing
 
@@ -60,6 +64,12 @@ Workspace-Context.
 - **Verworfen:** Self-Signed (Vertrauens-Chaos), EV-Cert (Kosten/Nutzen
   für v1 zu hoch).
 - **Reference:** SPEC-002 § Offene Punkte
+- **v3-TODO:** EV-Code-Signing-Zertifikat (Certifikats-Provider
+  wie DigiCert, Sectigo, GlobalSign). Implementierung: `signtool.exe`
+  in der CI-Pipeline nach `cargo tauri build`. Erwartete Schritte:
+  Certifikat kaufen → in GitHub-Secrets als Base64 speichern →
+  GitHub-Actions-Workflow erweitern → signtool-Aufruf hinzufügen →
+  SmartScreen-Warning verschwindet bei Installation.
 
 ### Distribution-Channel
 
@@ -114,19 +124,21 @@ Workspace-Context.
   neu als Rust-Bridge, File-Rename), SPEC-002 (Bundle ohne
   `backend/`-Ordner), SPEC-005 (IPC-Referenzen).
 
-### Config-Storage: v1 Klartext, v2 DPAPI-TODO
+### Config-Storage: v1 Klartext, v3 DPAPI-TODO
 
 - **Decision:** v1 speichert den `apiKey` in `config.json` als
   Klartext (UTF-8 String, kein Encoding). Eine echte
   Verschlüsselung (DPAPI auf Windows, Keychain auf macOS,
-  Secret Service auf Linux) wird in v2 nachgerüstet.
+  Secret Service auf Linux) wird in v3 nachgerüstet.
 - **Reason:** „Keep it simple" für v1 (Martins Direktive 2026-07-18):
   Single-User, Personal-Tool, keine Compliance-Anforderung für
   Encryption. Eine Windows-`dpapi.rs`-Implementation in v1 hätte
   FFI-Path-Mismatch-Risiken zwischen Crate-Versionen
   mitgebracht (siehe Commit-Versuche vor diesem hier). Klartext
   spart eine `windows`-crate-Dependency und reduziert die
-  Build-Komplexität.
+  Build-Komplexität. Martins Direktive 2026-07-18 11:41:20:
+  Code-Signing, Auto-Update und DPAPI zusammen auf v3 verschoben
+  (Konsolidierung der Sicherheits-/Distribution-Features).
 - **Verworfen für v1:**
   - DPAPI via `windows`-Crate — `CRYPT_DATA_BLOB`-Struct
     wandert zwischen Versionen (v0.58 fehlt am erwarteten Pfad),
@@ -136,13 +148,16 @@ Workspace-Context.
 - **Trade-off:** Bei physischem Zugriff auf den Rechner unter
   dem User-Account kann der apiKey aus `config.json` im Klartext
   gelesen werden. Akzeptabel für Single-User-Personal-Tool.
-- **v2-Plan:** `keyring`-Crate für plattformübergreifende
+- **v3-Plan:** `keyring`-Crate für plattformübergreifende
   Secret-Storage (Windows-Credential-Manager → DPAPI-Wrapper,
   macOS-Keychain, Linux-Secret-Service). Migrations-Pfad ist
-  in-place (v1-Klartext → v2-verschlüsselt beim ersten Start
-  nach Update).
+  in-place (v1-Klartext → v3-verschlüsselt beim ersten Start
+  nach Update). DPAPI wird zusammen mit Code-Signing in v3
+  eingeführt, da beide für sichere Distribution nötig sind
+  (signed Binary + verschlüsselter Key als zusammengehörige
+  Security-Features).
 - **Reference:** SPEC-003 (`endpoint.apiKey` statt
   `apiKeyCipher`), Card #4 Implementation im Tauri-Rust-Bridge-
   Schritt. `src-tauri/src/config/dpapi.rs` enthält einen trivialen
-  utf8-Passthrough, der in v2 durch eine echte Implementation
+  utf8-Passthrough, der in v3 durch eine echte Implementation
   ersetzt wird ohne API-Änderung für Caller.
