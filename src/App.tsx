@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import ConfigDialog from "./ConfigDialog";
+import ChatWindow from "./ChatWindow";
 import "./App.css";
 
 interface McpServer {
@@ -24,7 +25,6 @@ function App() {
   const [config, setConfig] = useState<Config | null>(null);
   const [showDialog, setShowDialog] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [count, setCount] = useState(0);
 
   useEffect(() => {
     (async () => {
@@ -36,7 +36,6 @@ function App() {
           setShowDialog(true);
         }
       } catch {
-        // Backend nicht erreichbar oder kein Config — Dialog zeigen
         setShowDialog(true);
       } finally {
         setLoading(false);
@@ -50,8 +49,12 @@ function App() {
       const updated = await invoke<Config | null>("config_get");
       if (updated) setConfig(updated);
     } catch {
-      // ignore — bestehende Config behalten
+      // ignore
     }
+  }
+
+  function openSettings() {
+    setShowDialog(true);
   }
 
   if (loading) {
@@ -75,42 +78,18 @@ function App() {
       <header className="hero">
         <h1>My Copilot</h1>
         <p className="subtitle">
-          Portable Windows 11 desktop app for AI agent workflows
+          {config ? `${config.endpoint} · ${config.model}` : "BYOK-Setup"}
         </p>
-        {config && (
-          <p className="version">
-            {config.endpoint} · {config.model}
-          </p>
-        )}
-      </header>
-
-      <section className="card">
-        <h2>Tauri 2 + React 18 + TypeScript 5</h2>
-        <p>Hello, World! Skeleton is alive.</p>
-        <button onClick={() => setCount((c) => c + 1)}>
-          Clicks: {count}
-        </button>
-      </section>
-
-      <section className="card stack">
-        <h3>Tech-Stack</h3>
-        <ul>
-          <li>App-Shell + Bridge: Tauri 2 (Rust)</li>
-          <li>Subprozess: Node.js v22+ + GitHub Copilot CLI</li>
-          <li>Frontend: CopilotKit React + Vite</li>
-          <li>LLM-Provider: OpenAI-kompatibel (BYOK)</li>
-        </ul>
-      </section>
-
-      <section className="card">
         <button
           type="button"
-          className="settings-btn"
-          onClick={() => setShowDialog(true)}
+          className="settings-btn-top"
+          onClick={openSettings}
         >
           Settings
         </button>
-      </section>
+      </header>
+
+      <ChatWindow />
 
       <footer className="footer">
         <small>

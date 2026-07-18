@@ -97,6 +97,19 @@ Detaillierte Aufschlüsselung pro Layer in
   Assistant-Message danach (gleiche UUID-v4-`session_id`). Cargo.toml
   erweitert um `chrono = "0.4"` + `uuid = "1" (v4)`. `cargo check`
   exit 0 (1.98s nach Compile-Cache).
+- **2026-07-18 (M7 abgeschlossen — Chat-UI mit CopilotKit)**:
+  `src/ChatWindow.tsx` (Component mit `<CopilotKit runtime={tauriRuntime}>`-
+  Provider, `useCopilotChat()`-Hook, MessageList + InputBox + Sidebar für
+  Session-Liste). Custom `tauriRuntime` als Bridge zwischen CopilotKit-Hook
+  und `chat_send`-IPC-Command (kein externes HTTP-Backend, alles lokal).
+  Sidebar ruft `history_list_sessions` beim Mount, klickbare Sessions
+  rufen `history_load_session` (v1: log-only, Display in v1.1).
+  `src/ChatWindow.css` Dark-Theme-Styling (Sidebar 240px, Messages
+  links/rechts-bündig, InputBox fixiert unten, auto-scroll zur neuesten
+  Message). `src/App.tsx` erweitert: zeigt `<ChatWindow />` statt
+  Hero/Tech-Stack-Section wenn Config geladen. Settings-Button oben
+  rechts öffnet weiterhin `<ConfigDialog />`. `tsc -p src/tsconfig.json`
+  exit 0.
 
 ## Git
 
@@ -140,7 +153,7 @@ Detaillierte Aufschlüsselung pro Layer in
 **Worktree-Mode:** nein (direkt auf `main`)
 **Eingerichtet am:** 2026-07-17
 
-**Stats:** 9 Karten, 0 todo · 0 ready · 0 running · 0 blocked · 6 complete
+**Stats:** 9 Karten, 0 todo · 0 ready · 0 running · 0 blocked · 7 complete
 
 ### Karte-Status-Verlauf
 
@@ -161,7 +174,10 @@ Detaillierte Aufschlüsselung pro Layer in
 - **2026-07-18 11:37** Karte #5 complete (Commit `747a465`)
 - **2026-07-18 11:40** Karte #6 (JSONL-Chat-History) claimed → running
 - **2026-07-18 11:45** Karte #6 verification: `cargo check` ✅ (1.98s)
-- **2026-07-18 11:46** Karte #6 complete (Commit pending)
+- **2026-07-18 11:46** Karte #6 complete (Commit `44aa9fc`)
+- **2026-07-18 11:50** Karte #7 (Chat-UI mit CopilotKit) claimed → running
+- **2026-07-18 11:55** Karte #7 verification: `tsc -p src/tsconfig.json` ✅
+- **2026-07-18 11:56** Karte #7 complete (Commit pending)
 
 ### Karten-Liste
 
@@ -173,7 +189,7 @@ Detaillierte Aufschlüsselung pro Layer in
 | 4 | Config-Management (config.json, v1 Klartext + v2-DPAPI-TODO) | high | **complete** | config, rust, milestone-3 | `cff6cacd-cb5e-4700-981a-e915aef527a7` |
 | 5 | BYOK-Config-Dialog UI (React + Tauri-IPC) | high | **complete** | ui, config, react, milestone-3 | `fca83a1a-2c4b-48e6-a13f-6493d52d7c06` |
 | 6 | JSONL-Chat-History (Sessions, Append-only, Read) | normal | **complete** | persistence, jsonl, rust, milestone-4 | `58b4d704-ce27-46a0-adf8-2b2dd7ad1cc7` |
-| 7 | Chat-UI mit CopilotKit (Streaming + Tool-Calls) | normal | todo | ui, chat, copilotkit, react, milestone-4 | `ea56fa8a-d65d-4768-ae2c-ef31d3a7cf94` |
+| 7 | Chat-UI mit CopilotKit (Streaming + Tool-Calls) | normal | **complete** | ui, chat, copilotkit, react, milestone-4 | `ea56fa8a-d65d-4768-ae2c-ef31d3a7cf94` |
 | 8 | End-to-End-Smoke-Test (manuelles Test-Protokoll) | high | todo | test, e2e, milestone-5 | `291b9b51-2106-44a7-ae40-189079bf7bd1` |
 | 9 | Build-Pipeline + Distribution (ZIP + GitHub Release) | low | todo | build, distribution, milestone-6 | `54e45cbf-a3ed-4916-bcf8-49017f8dd7e6` |
 
