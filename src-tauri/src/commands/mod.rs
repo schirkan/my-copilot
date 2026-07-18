@@ -5,4 +5,5 @@
 
 pub mod chat;
 pub mod config;
+pub mod history;
 pub mod process;

@@ -21,6 +21,8 @@ tokio-stream = "0.1"
 log = "0.4"
 env_logger = "0.11"
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+chrono = { version = "0.4", default-features = false, features = ["clock"] }
+uuid = { version = "1", features = ["v4"] }
 # v1: kein Crypto-Dep (apiKey ist Klartext in config.json)
 # v2-TODO: DPAPI via windows = "0.58" oder keyring (plattformübergreifend)
 

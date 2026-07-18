@@ -71,6 +71,32 @@ Detaillierte Aufschlüsselung pro Layer in
   `cargo check` exit 0 (2.69s nach Compile-Cache). lib.rs registriert
   alle 7 Commands via `tauri::generate_handler![]` + managet AppState
   im setup-Hook.
+- **2026-07-18 (M4 abgeschlossen — Klartext)**: Config-Management
+  mit Klartext-`apiKey` in `config.json` (Martins Direktive „Keep it
+  simple"). `dpapi.rs` komplett entfernt (trivialer Passthrough wäre
+  irreführend). Schema 1 inkl. `systemPrompt` + `mcpServers`.
+  Atomares `load_config`/`save_config` (Temp + Replace). ConfigError
+  ohne DPAPI-Variants. `commands/config.rs`: `config_set` ohne
+  Encryption. `lib.rs`-Setup lädt `config.json` ohne Decryption.
+  Cargo.toml: KEINE `base64` oder `windows`-Crate. `cargo check`
+  exit 0 (0.77s nach Compile-Cache). DECISIONS.md: neue Decision
+  „Config-Storage: v1 Klartext, v2 DPAPI-TODO".
+- **2026-07-18 (M5 abgeschlossen — Config-Dialog UI)**:
+  `src/ConfigDialog.tsx` (Modal mit 3 Tabs Connection/Behavior/Tools),
+  `src/ConfigDialog.css` (Dark-Theme-Styling), `src/App.tsx`
+  erweitert (`useEffect` config_get beim Mount, Settings-Button).
+  `tsc -p src/tsconfig.json` exit 0. Doku in PROJECT.md.
+- **2026-07-18 (M6 abgeschlossen — JSONL-Chat-History)**:
+  Persistence-Layer `src-tauri/src/persistence/{mod,session,append,
+  read}.rs`. Eine Datei pro Session in
+  `data/sessions/{session-id}.jsonl`, append-only via
+  `tokio::fs::OpenOptions::append()`. `Message` + `SessionMeta`
+  Structs, `load_session` + `list_sessions` + `delete_session`. 4
+  neue Tauri-Commands in `src-tauri/src/commands/history.rs`. `chat_send`
+  integriert: persistiert User-Message vor Streaming und
+  Assistant-Message danach (gleiche UUID-v4-`session_id`). Cargo.toml
+  erweitert um `chrono = "0.4"` + `uuid = "1" (v4)`. `cargo check`
+  exit 0 (1.98s nach Compile-Cache).
 
 ## Git
 
@@ -114,7 +140,7 @@ Detaillierte Aufschlüsselung pro Layer in
 **Worktree-Mode:** nein (direkt auf `main`)
 **Eingerichtet am:** 2026-07-17
 
-**Stats:** 9 Karten, 0 todo · 0 ready · 0 running · 0 blocked · 3 complete
+**Stats:** 9 Karten, 0 todo · 0 ready · 0 running · 0 blocked · 6 complete
 
 ### Karte-Status-Verlauf
 
@@ -126,10 +152,16 @@ Detaillierte Aufschlüsselung pro Layer in
 - **2026-07-17 23:47** Karte #2 complete (Commit `90052a5`)
 - **2026-07-17 23:48** Karte #3 (IPC-API) claimed → running
 - **2026-07-17 23:50** Karte #3 verification: `cargo check` ✅ (2.69s)
-- **2026-07-17 23:51** Karte #3 complete (Commit pending)
-- **2026-07-17 23:39** Karte #2 (CLI-Bridge) claimed → running
-- **2026-07-17 23:45** Karte #2 verification: `cargo check` ✅ (2.19s)
-- **2026-07-17 23:46** Karte #2 complete (Commit pending)
+- **2026-07-17 23:51** Karte #3 complete (Commit `91f610d`)
+- **2026-07-18 11:05** Karte #4 (Config-Management, Klartext) claimed → running
+- **2026-07-18 11:09** Karte #4 verification: `cargo check` ✅ (0.77s)
+- **2026-07-18 11:12** Karte #4 complete (Commit `369dd0e`)
+- **2026-07-18 11:32** Karte #5 (BYOK-Config-Dialog UI) claimed → running
+- **2026-07-18 11:35** Karte #5 verification: `tsc -p src/tsconfig.json` ✅
+- **2026-07-18 11:37** Karte #5 complete (Commit `747a465`)
+- **2026-07-18 11:40** Karte #6 (JSONL-Chat-History) claimed → running
+- **2026-07-18 11:45** Karte #6 verification: `cargo check` ✅ (1.98s)
+- **2026-07-18 11:46** Karte #6 complete (Commit pending)
 
 ### Karten-Liste
 
@@ -138,9 +170,9 @@ Detaillierte Aufschlüsselung pro Layer in
 | 1 | Tauri-Skeleton aufsetzen (Cargo.toml, src-tauri/, Hello-World) | high | **complete** | setup, tauri, milestone-1 | `a15846ee-201d-4a96-a2c7-48bcd47a700f` |
 | 2 | Tauri-Rust CLI-Bridge (Subprozess + JSON-RPC via Stdin/Stdout) | high | **complete** | bridge, rust, subprocess, milestone-2 | `26372b1f-1341-48fe-86d3-fad019be2305` |
 | 3 | Tauri-IPC-API definieren (Commands + Events + Streaming) | high | todo | ipc, tauri, milestone-2 | `9fb7796f-dcc6-47d1-892b-98a9849e140f` |
-| 4 | Config-Management (config.json + DPAPI für apiKey) | high | todo | config, rust, milestone-3 | `cff6cacd-cb5e-4700-981a-e915aef527a7` |
-| 5 | BYOK-Config-Dialog UI (React + Tauri-IPC) | high | todo | ui, config, react, milestone-3 | `fca83a1a-2c4b-48e6-a13f-6493d52d7c06` |
-| 6 | JSONL-Chat-History (Sessions, Append-only, Read) | normal | todo | persistence, jsonl, rust, milestone-4 | `58b4d704-ce27-46a0-adf8-2b2dd7ad1cc7` |
+| 4 | Config-Management (config.json, v1 Klartext + v2-DPAPI-TODO) | high | **complete** | config, rust, milestone-3 | `cff6cacd-cb5e-4700-981a-e915aef527a7` |
+| 5 | BYOK-Config-Dialog UI (React + Tauri-IPC) | high | **complete** | ui, config, react, milestone-3 | `fca83a1a-2c4b-48e6-a13f-6493d52d7c06` |
+| 6 | JSONL-Chat-History (Sessions, Append-only, Read) | normal | **complete** | persistence, jsonl, rust, milestone-4 | `58b4d704-ce27-46a0-adf8-2b2dd7ad1cc7` |
 | 7 | Chat-UI mit CopilotKit (Streaming + Tool-Calls) | normal | todo | ui, chat, copilotkit, react, milestone-4 | `ea56fa8a-d65d-4768-ae2c-ef31d3a7cf94` |
 | 8 | End-to-End-Smoke-Test (manuelles Test-Protokoll) | high | todo | test, e2e, milestone-5 | `291b9b51-2106-44a7-ae40-189079bf7bd1` |
 | 9 | Build-Pipeline + Distribution (ZIP + GitHub Release) | low | todo | build, distribution, milestone-6 | `54e45cbf-a3ed-4916-bcf8-49017f8dd7e6` |

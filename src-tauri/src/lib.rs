@@ -1,6 +1,7 @@
 pub mod commands;
 pub mod config;
 pub mod copilot;
+pub mod persistence;
 pub mod state;
 
 use state::AppState;
@@ -71,6 +72,10 @@ pub fn run() {
             commands::config::config_get,
             commands::config::config_set,
             commands::config::config_test,
+            commands::history::history_list_sessions,
+            commands::history::history_load_session,
+            commands::history::history_delete_session,
+            commands::history::history_append_message,
             commands::process::process_health,
             commands::process::process_restart,
         ])

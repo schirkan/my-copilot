@@ -1950,6 +1950,7 @@ dependencies = [
 name = "my-copilot"
 version = "0.1.0"
 dependencies = [
+ "chrono",
  "env_logger",
  "log",
  "reqwest 0.12.28",
@@ -1959,6 +1960,7 @@ dependencies = [
  "tauri-build",
  "tokio",
  "tokio-stream",
+ "uuid",
 ]
 
 [[package]]

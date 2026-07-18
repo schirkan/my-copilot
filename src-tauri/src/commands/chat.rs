@@ -27,6 +27,24 @@ pub async fn chat_send(
         .clone()
         .ok_or_else(|| "no config — please configure first".to_string())?;
 
+    let session_id = uuid::Uuid::new_v4().to_string();
+    let exe_dir = state.exe_dir.clone();
+    let model_name = config.model.clone();
+
+    // User-Message persistieren (vor Streaming)
+    let user_msg = crate::persistence::Message {
+        id: uuid::Uuid::new_v4().to_string(),
+        request_id: session_id.clone(),
+        role: "user".to_string(),
+        content: message.clone(),
+        ts: crate::persistence::now_iso(),
+        model: model_name.clone(),
+        tokens: 0,
+    };
+    crate::persistence::append_message(&exe_dir, &user_msg)
+        .await
+        .map_err(|e| format!("append user message: {}", e))?;
+
     let mut bridge = crate::copilot::spawn_bridge(&state.exe_dir, config)
         .await
         .map_err(|e| format!("spawn bridge: {}", e))?;
@@ -43,6 +61,20 @@ pub async fn chat_send(
 
     // Bridge wird gedroppt → kill_on_drop=true killt Subprozess sauber.
     drop(bridge);
+
+    // Assistant-Message persistieren (nach Streaming)
+    let assistant_msg = crate::persistence::Message {
+        id: uuid::Uuid::new_v4().to_string(),
+        request_id: session_id.clone(),
+        role: "assistant".to_string(),
+        content: response.clone(),
+        ts: crate::persistence::now_iso(),
+        model: model_name.clone(),
+        tokens: 0, // v1: Placeholder; echte Token-Count kommt wenn Copilot-CLI usage-Stats liefert
+    };
+    crate::persistence::append_message(&exe_dir, &assistant_msg)
+        .await
+        .map_err(|e| format!("append assistant message: {}", e))?;
 
     Ok(response)
 }
