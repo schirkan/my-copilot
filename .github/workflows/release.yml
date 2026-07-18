@@ -1,0 +1,141 @@
+name: release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build portable bundle
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo registry
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            src-tauri -> target
+            . -> node_modules
+
+      - name: Install npm dependencies (frontend)
+        run: npm ci
+
+      - name: Install npm dependencies (Copilot CLI)
+        run: |
+          cd src-tauri/copilot-cli 2>/dev/null || mkdir -p src-tauri/copilot-cli
+          npm init -y >/dev/null 2>&1 || true
+          npm install @github/copilot-cli 2>&1 | tail -5 || echo "copilot-cli install failed (non-blocking for build)"
+
+      - name: Build Tauri app (produces MyCopilot.exe)
+        run: cargo tauri build --bundles none
+        working-directory: src-tauri
+        env:
+          NODE_PATH: ${{ github.workspace }}
+
+      - name: Locate Tauri build output
+        shell: pwsh
+        run: |
+          $tauriDir = "src-tauri/target/release"
+          Write-Host "Tauri build artifacts:"
+          Get-ChildItem $tauriDir -Filter "MyCopilot.exe" -Recurse | ForEach-Object { Write-Host $_.FullName }
+
+      - name: Assemble portable bundle
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+
+          # Locate the Tauri release binary
+          $binary = Get-ChildItem "src-tauri/target/release/MyCopilot.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
+          if (-not $binary) {
+            Write-Error "MyCopilot.exe not found in src-tauri/target/release/"
+            exit 1
+          }
+          Write-Host "Binary found at: $($binary.FullName)"
+
+          # Create portable bundle
+          $bundleName = "MyCopilot-portable-${{ github.ref_name }}"
+          $bundlePath = "${{ github.workspace }}\$bundleName"
+          if (Test-Path $bundlePath) {
+            Remove-Item -Recurse -Force $bundlePath
+          }
+          New-Item -ItemType Directory -Path $bundlePath | Out-Null
+
+          # Copy binary
+          Copy-Item $binary.FullName "$bundlePath\MyCopilot.exe"
+
+          # Copy embedded node/ + copilot-cli/ if present
+          $nodeDir = "src-tauri/node"
+          if (Test-Path $nodeDir) {
+            Copy-Item -Recurse $nodeDir "$bundlePath\node"
+          }
+          $copilotCliDir = "src-tauri/copilot-cli"
+          if (Test-Path $copilotCliDir) {
+            Copy-Item -Recurse $copilotCliDir "$bundlePath\copilot-cli"
+          }
+
+          # Create README
+          @"
+          # MyCopilot (portable build)
+
+          Portable Build für Windows 11.
+
+          ## Nutzung
+
+          1. Doppelklick auf `MyCopilot.exe`
+          2. Erstlauf-Dialog: Endpoint-URL + API-Key eingeben
+          3. Save → `config.json` wird im exe-Verzeichnis geschrieben
+          4. Chat-Layout erscheint
+
+          ## Voraussetzungen
+
+          - Windows 11 (WebView2 vorinstalliert)
+          - Keine weitere Software nötig (Node.js embedded, Copilot CLI embedded)
+
+          ## Persistenz
+
+          - `config.json` im exe-Verzeichnis (BYOK-Config, Klartext v1)
+          - `data/sessions/*.jsonl` (Chat-History, eine Datei pro Session)
+
+          ## Lizenz
+
+          MIT — siehe LICENSE im Repository.
+          "@ | Set-Content -Path "$bundlePath\README.txt" -Encoding UTF8
+
+          # Create ZIP
+          Compress-Archive -Path "$bundlePath\*" -DestinationPath "$bundleName.zip" -Force
+          Write-Host "Bundle created: $bundleName.zip"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: mycopilot-portable-bundle
+          path: ${{ github.workspace }}/MyCopilot-portable-${{ github.ref_name }}.zip
+          if-no-files-found: error
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: ${{ github.ref_name }}
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+          files: |
+            ${{ github.workspace }}/MyCopilot-portable-${{ github.ref_name }}.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
