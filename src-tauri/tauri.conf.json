@@ -4,9 +4,9 @@
   "version": "0.1.0",
   "identifier": "dev.schirkan.mycopilot",
   "build": {
-    "beforeDevCommand": "cd ../src && npm run dev",
+    "beforeDevCommand": "npm run dev",
     "devUrl": "http://localhost:1420",
-    "beforeBuildCommand": "cd ../src && npm run build",
+    "beforeBuildCommand": "echo skipping-frontend-build",
     "frontendDist": "../src/dist"
   },
   "app": {

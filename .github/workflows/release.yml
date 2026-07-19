@@ -47,6 +47,10 @@ jobs:
         shell: bash
         run: cargo install tauri-cli --version "^2.0" --locked
 
+      - name: Build frontend (tsc + vite)
+        working-directory: src
+        run: npm run build
+
       - name: Build Tauri app (produces MyCopilot.exe)
         run: cargo tauri build --no-bundle
         working-directory: src-tauri
