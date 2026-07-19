@@ -62,7 +62,7 @@ jobs:
         run: |
           $tauriDir = "src-tauri/target/release"
           Write-Host "Tauri build artifacts:"
-          Get-ChildItem $tauriDir -Filter "MyCopilot.exe" -Recurse | ForEach-Object { Write-Host $_.FullName }
+          Get-ChildItem $tauriDir -Filter "my-copilot.exe" -Recurse | ForEach-Object { Write-Host $_.FullName }
 
       - name: Assemble portable bundle
         shell: pwsh
@@ -70,9 +70,9 @@ jobs:
           $ErrorActionPreference = 'Stop'
 
           # Locate the Tauri release binary
-          $binary = Get-ChildItem "src-tauri/target/release/MyCopilot.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
+          $binary = Get-ChildItem "src-tauri/target/release/my-copilot.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
           if (-not $binary) {
-            Write-Error "MyCopilot.exe not found in src-tauri/target/release/"
+            Write-Error "my-copilot.exe not found in src-tauri/target/release/"
             exit 1
           }
           Write-Host "Binary found at: $($binary.FullName)"
