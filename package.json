@@ -19,7 +19,7 @@
     "@copilotkit/react-core": "^1.8.0",
     "@copilotkit/react-ui": "^1.8.0",
     "@tauri-apps/api": "^2.0.0",
-    "zustand": "^4.5.0",
+    "zustand": "^5.0.14",
     "@tanstack/react-query": "^5.50.0"
   },
   "devDependencies": {
