@@ -23,7 +23,8 @@ export default defineConfig({
   build: {
     outDir: "../dist",
     target: "es2022",
-    minify: "esbuild",
+    // Vite 8: Oxc-Minifier ist Default; "esbuild" wuerde esbuild als devDep erzwingen
+    minify: true,
     sourcemap: false,
   },
 });
