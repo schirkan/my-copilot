@@ -21,6 +21,7 @@ export default defineConfig({
   },
   envPrefix: ["VITE_", "TAURI_ENV_*"],
   build: {
+    outDir: "../dist",
     target: "es2022",
     minify: "esbuild",
     sourcemap: false,
