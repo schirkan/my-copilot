@@ -50,11 +50,11 @@ jobs:
       - name: Build frontend (tsc + vite)
         shell: bash
         working-directory: src
-        run: npm run build
+        run: cd src && npm run build
 
       - name: Build Tauri app (produces MyCopilot.exe)
         shell: bash
-        run: cargo tauri build --no-bundle
+        run: cd src-tauri && cargo tauri build --no-bundle
         working-directory: src-tauri
         env:
           NODE_PATH: ${{ github.workspace }}
