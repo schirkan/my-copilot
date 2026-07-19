@@ -49,7 +49,7 @@ jobs:
 
       - name: Build frontend (tsc + vite)
         shell: bash
-        run: cd "$GITHUB_WORKSPACE/src" && npm run build
+        run: cd "$GITHUB_WORKSPACE" && npm run build
 
       - name: Build Tauri app (produces MyCopilot.exe)
         shell: bash

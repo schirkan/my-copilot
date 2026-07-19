@@ -6,7 +6,7 @@
   "description": "Portable Windows 11 desktop app for AI agent workflows (BYOK)",
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build",
+    "build": "tsc -p src/tsconfig.json && vite build -c src/vite.config.ts",
     "preview": "vite preview",
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
