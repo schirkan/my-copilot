@@ -45,7 +45,7 @@ jobs:
 
       - name: Install tauri-cli
         shell: bash
-        run: cargo install tauri-cli --version "^2.0" --locked
+        run: echo "@tauri-apps/cli is installed via npm ci"
 
       - name: Build frontend (tsc + vite)
         shell: bash
@@ -53,7 +53,7 @@ jobs:
 
       - name: Build Tauri app (produces MyCopilot.exe)
         shell: bash
-        run: cd "$GITHUB_WORKSPACE/src-tauri" && cargo tauri build --no-bundle
+        run: cd "$GITHUB_WORKSPACE/src-tauri" && npm exec --yes -- tauri build --no-bundle
         env:
           NODE_PATH: ${{ github.workspace }}
 
