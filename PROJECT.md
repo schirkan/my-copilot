@@ -110,6 +110,23 @@ Detaillierte Aufschlüsselung pro Layer in
   Hero/Tech-Stack-Section wenn Config geladen. Settings-Button oben
   rechts öffnet weiterhin `<ConfigDialog />`. `tsc -p src/tsconfig.json`
   exit 0.
+- **2026-07-19 (CI-Pipeline grün — rc1 bis rc17)**:
+  13 Pipeline-Fixes nötig (Commits `30e6208`–`33be1fb` Fix #6–#14) nach
+  initialem Workflow-Commit aus M9. Hauptprobleme: PowerShell-`exec` +
+  `working-directory`-Cwd-Propagation, Vite-Cwd-Loss via npm-Shims,
+  Binary-Name = Cargo-Paketname (`my-copilot.exe`, nicht `productName`),
+  GitHub-Actions-v4-Deprecation. **rc14–rc17 grün**, alle 14 Steps success,
+  GitHub-Release + ZIP-Bundle automatisch erstellt.
+- **2026-07-19 (npm-Update-Block — Fix #15–#19)**:
+  Lokale Updates mit Einzel-Commits pro Paket, ein Push mit rc17-Tag am
+  Ende (Direktive Martin #5610): zustand 4.5.7→5.0.14 (`d9abaea`),
+  React 18→19 + react-dom + types (`a97e44f`), Vite 5→8 + plugin-react
+  4→6 + Oxc-Minifier (`3d7e7e1`), TypeScript 5→7 (`9945e81`),
+  Spec-Ranges verschärft (`f4526d6`). Alle Updates semver-konform,
+  lokaler Build grün (9141 Modules, ~4s).
+- **2026-07-20 (CI in PROJECT.md dokumentiert + v0.1.0 stable)**:
+  CI-Sektion in PROJECT.md hinzugefügt. Nach 8 grünen rc-Runden
+  (rc10–rc17) wird das erste stable Release `v0.1.0` getaggt.
 
 ## Git
 
@@ -127,6 +144,82 @@ Detaillierte Aufschlüsselung pro Layer in
 > Hinweis: Der OpenClaw-Workspace-Root (`C:\Users\Admin\.openclaw\workspace`)
 > ist ein separates Git-Repo. `projects/my-copilot/` ist dort **nicht**
 > getrackt — eigenständiges Repo.
+
+## CI / GitHub Actions
+
+**Workflow:** `.github/workflows/release.yml`
+**Triggers:** `push: tags: 'v*'`, `workflow_dispatch`
+**Runner:** `windows-latest` (Windows 11, kein Cross-Build Linux → Windows)
+
+### Pipeline-Schritte (14)
+
+| # | Step | Action |
+|---|---|---|
+| 1 | Set up job | Runner-Init |
+| 2 | Checkout | `actions/checkout@v5` |
+| 3 | Setup Node.js | `actions/setup-node@v5`, Node 22 |
+| 4 | Setup Rust | `dtolnay/rust-toolchain@stable` |
+| 5 | Cache cargo registry | `Swatinem/rust-cache@v2` |
+| 6 | Install npm dependencies (frontend) | `npm ci` |
+| 7 | Install npm dependencies (Copilot CLI) | `npm install @github/copilot-cli` (bash) |
+| 8 | Install tauri-cli | via `npm ci` (Schritt 6) — spart ~5–10 Min/Run ggü. `cargo install` |
+| 9 | Build frontend (tsc + vite) | `cd "$GITHUB_WORKSPACE" && npm run build` (bash, cwd-agnostisch) |
+| 10 | Build Tauri app (no-bundle) | `cd "$GITHUB_WORKSPACE/src-tauri" && npm exec -- tauri build --no-bundle` (bash) |
+| 11 | Locate Tauri build output | `Get-ChildItem -Filter "my-copilot.exe"` (pwsh) |
+| 12 | Assemble portable bundle | Kopiert Binary + Cargo-Deps in `bin/` (pwsh) |
+| 13 | Upload artifact | `actions/upload-artifact@v5` |
+| 14 | Create GitHub Release | `softprops/action-gh-release@v3` (ZIP) |
+
+### Versioning-Strategie
+
+- **`vX.Y.Z`** — Stable Release (Production-ready)
+- **`vX.Y.Z-rcN`** — Release Candidate (N inkrementiert pro Push)
+
+Workflow wird per `git push origin vX.Y.Z-rcN` oder `vX.Y.Z` getriggert.
+**Tags dürfen nicht verschoben werden** — GitHub Releases zeigen sonst
+auf einen falschen Commit. Bei Fehlern: neuen rc-Tag pushen, alten
+nicht löschen (bleibt als History in den Releases).
+
+### Build-Output (ZIP-Bundle)
+
+```
+my-copilot-v0.1.0.zip
+└── bin/
+    ├── my-copilot.exe          ← Tauri-Binary (statisch gelinkt, ~30–50 MB)
+    ├── copilot-cli/            ← Node.js-Subprozess
+    │   ├── @github/copilot-cli
+    │   ├── @tauri-apps/cli
+    │   └── node_modules/
+    └── (geplant v3: README.txt mit Installationshinweisen)
+```
+
+Gesamtgröße: ~80–100 MB. Kein Code-Signing in v1 (v3-Feature).
+
+### Lessons Learned (Pipeline-Fixes #1–#14)
+
+13 Iterationen von rc1 bis rc14 nötig. Hauptlessons:
+
+| # | Lesson | Fix |
+|---|---|---|
+| 1 | PowerShell-`Set-Location` propagiert nicht zu `[Environment]::CurrentDirectory` | `$GITHUB_WORKSPACE` + explizite `cd` in `run:` |
+| 2 | `working-directory` + PowerShell-`exec` ist fragil | `shell: bash` für Steps mit Cwd-Manipulation |
+| 3 | Vite-Cwd-Loss via npm-Shim (`tsc`, `vite` als npm-Scripts) | cwd-agnostische Flags: `-p src/tsconfig.json`, `-c src/vite.config.ts` |
+| 4 | Vite `root: "src"` → Output landet in `src/dist/` | `outDir: "../dist"` explizit setzen |
+| 5 | `<script src="/src/main.tsx">` in `index.html` nicht resolvable | Relativ: `<script src="./main.tsx">` |
+| 6 | `cargo install tauri-cli` braucht ~5–10 Min Compile | `@tauri-apps/cli` via npm |
+| 7 | Binary-Filename = Cargo-Paketname (`my-copilot.exe`), NICHT `productName` | Scripts müssen `my-copilot.exe` matchen |
+| 8 | Tauri-Binary wird auch ohne `--bundles` gebaut (Artefakt liegt trotzdem da) | `--no-bundle` Flag (separater Assemble-Step) |
+| 9 | GitHub-Actions v4 läuft auf deprecated Node-20 | v5-Actions: `checkout@v5`, `setup-node@v5`, `upload-artifact@v5` |
+| 10 | Vite 8: `minify: "esbuild"` ist deprecated | `minify: true` (Vite-8-Default = Oxc) |
+| 11 | `transformWithEsbuild` durch Plugins → `esbuild` muss als devDep | `@vitejs/plugin-react@6` nutzt Oxc nativ, kein Workaround nötig |
+
+### CI-Status (laufende Pipeline)
+
+| Tag-Phase | Status | Notes |
+|---|---|---|
+| **rc1–rc13** | ❌ rot | diverse Fehler (siehe Lessons Learned) |
+| **rc14–rc17** | ✅ grün | alle 14 Steps success, ZIP-Bundle erstellt |
+| **v0.1.0** | ⏳ pending | erster Stable-Tag (getaggt 2026-07-20 nach rc17) |
 
 ## Project Files
 
