@@ -1,0 +1,12 @@
+{
+  "name": "my-copilot-bridge",
+  "version": "0.1.0",
+  "private": true,
+  "description": "My Copilot — JSON-RPC bridge between Tauri-Rust and the OpenAI-compatible BYOK endpoint. Zero runtime dependencies (Node.js builtins only).",
+  "main": "index.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "license": "MIT"
+}

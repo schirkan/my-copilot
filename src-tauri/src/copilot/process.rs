@@ -67,26 +67,37 @@ impl CopilotCliProcess {
     /// Startet den Subprozess: `node/node.exe copilot-cli/index.js`.
     ///
     /// Pfade werden **exe-relativ** aufgelöst (siehe SPEC-002 §
-    /// Pfad-Resolution). ENV-Variablen `COPILOT_HOME` und `NODE_PATH`
-    /// werden explizit gesetzt (PATH wird NICHT überschrieben, um
-    /// Kollision mit System-Node zu vermeiden).
+    /// Pfad-Resolution). Im **Release-Bundle** liegt ein embedded
+    /// Node.js unter `<exe_dir>/node/node.exe` und die
+    /// Copilot-CLI unter `<exe_dir>/copilot-cli/index.js`. Im
+    /// **Dev-Modus** (`cargo run`) gibt es den Bundle-Pfad nicht —
+    /// wir fallen auf den Source-Pfad `src-tauri/copilot-cli/`
+    /// zurück (per `CARGO_MANIFEST_DIR`) und auf System-Node statt
+    /// embedded Node.
+    ///
+    /// ENV-Variablen `COPILOT_HOME` und `NODE_PATH` werden explizit
+    /// gesetzt. PATH wird NICHT überschrieben (Kollision mit
+    /// System-Node vermeiden).
     pub fn start(exe_dir: &Path) -> Result<Self, ProcessError> {
-        let node_exe = exe_dir.join("node").join(
-            if cfg!(windows) { "node.exe" } else { "node" }
-        );
-        let cli_entry = exe_dir.join("copilot-cli").join("index.js");
+        // copilot-cli-Verzeichnis wählen:
+        //   1) <exe_dir>/copilot-cli    (Release-Bundle)
+        //   2) <src-tauri>/copilot-cli  (Dev-Modus, via CARGO_MANIFEST_DIR)
+        let cli_root = resolve_cli_root(exe_dir)?;
+        let cli_entry = cli_root.join("index.js");
 
-        if !node_exe.exists() {
-            return Err(ProcessError::NodeBinaryMissing(node_exe));
-        }
         if !cli_entry.exists() {
             return Err(ProcessError::CliEntryMissing(cli_entry));
         }
 
+        // Node-Binary wählen: zuerst embedded, dann System-Node.
+        let node_exe = resolve_node_binary(exe_dir)?;
+        log::info!("Verwende Node-Binary: {:?}", node_exe);
+        log::info!("Verwende CLI-Root: {:?}", cli_root);
+
         let mut child = Command::new(&node_exe)
             .arg(&cli_entry)
-            .env("COPILOT_HOME", exe_dir.join("copilot-cli"))
-            .env("NODE_PATH", exe_dir.join("copilot-cli").join("node_modules"))
+            .env("COPILOT_HOME", &cli_root)
+            .env("NODE_PATH", cli_root.join("node_modules"))
             // Wichtig: PATH nicht ändern (Kollision mit System-Node)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
@@ -157,4 +168,76 @@ impl CopilotCliProcess {
 
     pub fn node_exe(&self) -> &Path { &self.node_exe }
     pub fn cli_entry(&self) -> &Path { &self.cli_entry }
+}
+
+/// Wählt das zu verwendende Node.js-Binary.
+///
+/// Reihenfolge:
+/// 1. `<exe_dir>/node/node.exe` (Release-Bundle, embedded Node)
+/// 2. `node` auf PATH (Dev-Modus auf Windows: findet das System-Node)
+/// 3. Bekannte absolute Pfade (`C:\Program Files\nodejs\node.exe`)
+fn resolve_node_binary(exe_dir: &Path) -> Result<PathBuf, ProcessError> {
+    let bundled = exe_dir.join("node").join(
+        if cfg!(windows) { "node.exe" } else { "node" }
+    );
+    if bundled.exists() {
+        return Ok(bundled);
+    }
+
+    // System-Node über PATH (Windows nutzt `where`, Unix `which`)
+    let probe = if cfg!(windows) { "where" } else { "which" };
+    let output = std::process::Command::new(probe)
+        .arg("node")
+        .output()
+        .ok()
+        .filter(|o| o.status.success())
+        .and_then(|o| {
+            let s = String::from_utf8_lossy(&o.stdout);
+            // erste nicht-leere Zeile
+            s.lines().find(|l| !l.trim().is_empty()).map(|s| s.trim().to_string())
+        });
+
+    if let Some(p) = output {
+        return Ok(PathBuf::from(p));
+    }
+
+    // Bekannte Windows-Defaults (Last-Resort-Fallback)
+    if cfg!(windows) {
+        for candidate in [
+            r"C:\Program Files\nodejs\node.exe",
+            r"C:\Program Files (x86)\nodejs\node.exe",
+        ] {
+            let p = PathBuf::from(candidate);
+            if p.exists() {
+                return Ok(p);
+            }
+        }
+    }
+
+    Err(ProcessError::NodeBinaryMissing(bundled))
+}
+
+/// Wählt das Verzeichnis, in dem die Copilot-CLI liegt.
+///
+/// Reihenfolge:
+/// 1. `<exe_dir>/copilot-cli` (Release-Bundle)
+/// 2. `<CARGO_MANIFEST_DIR>/copilot-cli` (Dev-Modus — Cargo setzt
+///    diese Env-Var beim Build, sie zeigt auf das Tauri-Crate-Root
+///    `src-tauri/`).
+fn resolve_cli_root(exe_dir: &Path) -> Result<PathBuf, ProcessError> {
+    let bundled = exe_dir.join("copilot-cli");
+    if bundled.join("index.js").exists() {
+        return Ok(bundled);
+    }
+
+    if let Ok(manifest) = std::env::var("CARGO_MANIFEST_DIR") {
+        let dev = PathBuf::from(manifest).join("copilot-cli");
+        if dev.join("index.js").exists() {
+            return Ok(dev);
+        }
+    }
+
+    // Last-Resort: gib den erwarteten Bundle-Pfad zurück, damit
+    // der Aufrufer eine aussagekräftige Fehlermeldung bekommt.
+    Err(ProcessError::CliEntryMissing(bundled.join("index.js")))
 }

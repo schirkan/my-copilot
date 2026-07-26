@@ -51,9 +51,15 @@ const EMPTY_CONFIG: Config = {
 
 export default function ConfigDialog({ onClose, initialConfig }: Props) {
   const [tab, setTab] = useState<Tab>("connection");
-  const [config, setConfig] = useState<Config>(
-    initialConfig ?? EMPTY_CONFIG
-  );
+  // Normalize: Rust's config_get serializes mcp_servers mit
+  // skip_serializing_if = "Vec::is_empty", d.h. ein leeres Array
+  // fehlt komplett im JSON → `mcp_servers` ist undefined. Wir
+  // mergen deshalb initialConfig mit EMPTY_CONFIG Defaults.
+  const [config, setConfig] = useState<Config>({
+    ...EMPTY_CONFIG,
+    ...(initialConfig ?? {}),
+    mcp_servers: initialConfig?.mcp_servers ?? [],
+  });
   const [testResult, setTestResult] = useState<ConfigTestResult | null>(null);
   const [testing, setTesting] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -71,7 +77,14 @@ export default function ConfigDialog({ onClose, initialConfig }: Props) {
     (async () => {
       try {
         const existing = await invoke<Config | null>("config_get");
-        if (existing) setConfig(existing);
+        if (existing) {
+          // Normalize: siehe useState-Initialisierung oben.
+          setConfig({
+            ...EMPTY_CONFIG,
+            ...existing,
+            mcp_servers: existing.mcp_servers ?? [],
+          });
+        }
       } catch {
         // Erstlauf — kein Config vorhanden, defaults bleiben
       }
