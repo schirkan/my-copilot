@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { CopilotKit, useCopilotChat } from "@copilotkit/react-core";
+import { CopilotKit } from "@copilotkit/react-core";
 import "./ChatWindow.css";
 
 interface SessionMeta {
@@ -49,75 +49,19 @@ function makeId(): string {
  * Architektur (siehe SPEC-001 + SPEC-005):
  *  - Tauri-IPC-Command `chat_send` ruft den Copilot-SDK-Subprozess
  *    über die Tauri-Rust-Bridge auf (kein HTTP, kein externes Backend).
- *  - CopilotKit wird genutzt, weil es UI-Komponenten + Hooks für
- *    Chat-Verhalten bereitstellt (message state, append, reload,
- *    stop). Der eingebaute Remote-Runtime-Pfad (`runtimeUrl`)
- *    wird NICHT verwendet — die Validierung von CopilotKit erwartet
- *    aber `runtimeUrl` ODER `publicApiKey`/etc., deswegen übergeben
- *    wir einen Platzhalter. Die eigentliche Chat-Pipeline läuft
- *    über `onSubmitMessage` + den Tauri-IPC.
- *  - `appendMessage(msg, { followUp: false })` verhindert, dass
- *    CopilotKit nach dem Append versucht, den Remote-Agent zu
- *    kontaktieren.
+ *  - `<CopilotKit>` bleibt im Tree, damit der Kontext für ggf. später
+ *    verwendete CopilotKit-Hooks bereitsteht (useCopilotAction,
+ *    useFrontendTool, etc.). Der Remote-Runtime-Pfad (`runtimeUrl`)
+ *    wird NICHT verwendet — wir übergeben einen Platzhalter, damit
+ *    die Prop-Validation nicht crasht. Inhaltlich geht der gesamte
+ *    Chat über `chat_send`.
+ *  - Frühere Versuche mit `useCopilotChat({ onSubmitMessage })` oder
+ *    `appendMessage(plainObject)` crashen, weil der Hook in v1.63.1
+ *    CopilotKit-Message-Instanzen (mit `isResultMessage()`) erwartet
+ *    bzw. intern GraphQL-Remote-Runtime ansprechen würde. Daher
+ *    managen wir Messages und Submit-Pfad jetzt komplett lokal.
  */
 function ChatInner() {
-  const { appendMessage } = useCopilotChat({
-    onSubmitMessage: async (text: string) => {
-      const assistantId = makeId();
-      // Optimistic UI: leere Assistant-Message anzeigen
-      setLocalMessages((prev) => [
-        ...prev,
-        {
-          id: assistantId,
-          role: "assistant",
-          content: "",
-        },
-      ]);
-      setIsLoading(true);
-      try {
-        const reply = await invoke<string>("chat_send", { message: text });
-        setLocalMessages((prev) =>
-          prev.map((m) =>
-            m.id === assistantId ? { ...m, content: reply } : m,
-          ),
-        );
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        setLocalMessages((prev) =>
-          prev.map((m) =>
-            m.id === assistantId
-              ? {
-                  ...m,
-                  content: `[Fehler: ${msg}]`,
-                }
-              : m,
-          ),
-        );
-        // eslint-disable-next-line no-console
-        console.error("chat_send failed:", err);
-      } finally {
-        setIsLoading(false);
-        // Session-Liste refreshen (JSONL-Persistenz ist in Rust
-        // abgeschlossen, sobald chat_send zurückkehrt).
-        window.setTimeout(() => {
-          void (async () => {
-            try {
-              const list = await invoke<SessionMeta[]>(
-                "history_list_sessions",
-              );
-              setSessions(list);
-            } catch (e) {
-              // eslint-disable-next-line no-console
-              console.error("history_list_sessions failed:", e);
-            }
-          })();
-        }, 500);
-      }
-    },
-  });
-
-  // useCopilotChat (v1.63 headless hook) liefert KEIN input/setInput.
-  // Diese müssen lokal verwaltet werden (siehe SPEC-005 § ChatInput).
   const [input, setInput] = useState("");
   const [sessions, setSessions] = useState<SessionMeta[]>([]);
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(
@@ -154,15 +98,55 @@ function ChatInner() {
       ...prev,
       { id: makeId(), role: "user", content: trimmed },
     ]);
-
-    // followUp:false verhindert, dass CopilotKit versucht, den
-    // Remote-Runtime-Agent zu kontaktieren — wir machen das selbst
-    // in onSubmitMessage.
-    void appendMessage(
-      { role: "user", content: trimmed },
-      { followUp: false },
-    );
     setInput("");
+
+    // Optimistic UI: leere Assistant-Bubble sofort rendern, damit
+    // der Lade-Zustand visuell klar ist.
+    const assistantId = makeId();
+    setLocalMessages((prev) => [
+      ...prev,
+      { id: assistantId, role: "assistant", content: "" },
+    ]);
+    setIsLoading(true);
+
+    void invoke<string>("chat_send", { message: trimmed })
+      .then((reply) => {
+        setLocalMessages((prev) =>
+          prev.map((m) =>
+            m.id === assistantId ? { ...m, content: reply } : m,
+          ),
+        );
+      })
+      .catch((err: unknown) => {
+        const msg = err instanceof Error ? err.message : String(err);
+        setLocalMessages((prev) =>
+          prev.map((m) =>
+            m.id === assistantId
+              ? { ...m, content: `[Fehler: ${msg}]` }
+              : m,
+          ),
+        );
+        // eslint-disable-next-line no-console
+        console.error("chat_send failed:", err);
+      })
+      .finally(() => {
+        setIsLoading(false);
+        // Session-Liste refreshen (JSONL-Persistenz ist in Rust
+        // abgeschlossen, sobald chat_send zurückkehrt).
+        window.setTimeout(() => {
+          void (async () => {
+            try {
+              const list = await invoke<SessionMeta[]>(
+                "history_list_sessions",
+              );
+              setSessions(list);
+            } catch (e) {
+              // eslint-disable-next-line no-console
+              console.error("history_list_sessions failed:", e);
+            }
+          })();
+        }, 500);
+      });
   }
 
   async function handleLoadSession(sessionId: string) {
@@ -265,9 +249,8 @@ function ChatInner() {
 export default function ChatWindow() {
   // runtimeUrl ist ein Platzhalter — CopilotKit validiert nur, dass
   // EINES von runtimeUrl/publicApiKey/publicLicenseKey gesetzt ist.
-  // Wir rufen den Remote-Runtime-Pfad nie auf, weil wir in
-  // ChatInner mit `appendMessage(msg, { followUp: false })` arbeiten
-  // und den eigentlichen Chat über Tauri-IPC `chat_send` abwickeln.
+  // Wir rufen den Remote-Runtime-Pfad nie auf, weil der gesamte
+  // Chat über Tauri-IPC `chat_send` läuft.
   const runtimeUrl = "http://localhost/copilotkit-runtime";
   return (
     <CopilotKit runtimeUrl={runtimeUrl}>
