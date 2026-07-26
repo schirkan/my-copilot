@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import "./ChatWindow.css";
 
 interface SessionMeta {
@@ -39,6 +41,13 @@ function extractText(content: string | ChatContentPart[] | undefined): string {
       .join("\n");
   }
   return "";
+}
+
+function sanitizeAssistantContent(text: string): string {
+  return text
+    .replace(/<think>[\s\S]*?<\/think>/gi, "")
+    .replace(/^```markdown\s*/i, "```")
+    .trim();
 }
 
 function makeId(): string {
@@ -116,7 +125,9 @@ function ChatInner() {
       .then((reply) => {
         setLocalMessages((prev) =>
           prev.map((m) =>
-            m.id === assistantId ? { ...m, content: reply } : m,
+            m.id === assistantId
+              ? { ...m, content: sanitizeAssistantContent(reply) }
+              : m,
           ),
         );
       })
@@ -165,7 +176,10 @@ function ChatInner() {
         msgs.map((msg) => ({
           id: msg.id,
           role: msg.role,
-          content: msg.content,
+          content:
+            msg.role === "assistant"
+              ? sanitizeAssistantContent(msg.content)
+              : msg.content,
         })),
       );
     } catch (e) {
@@ -250,8 +264,15 @@ function ChatInner() {
                 {m.role === "user" ? "Du" : "Copilot"}
               </div>
               <div className="message-content">
-                {extractText(m.content) ||
-                  (m.role === "assistant" && isLoading ? "…" : "")}
+                {m.role === "assistant" ? (
+                  extractText(m.content) ? (
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                      {extractText(m.content)}
+                    </ReactMarkdown>
+                  ) : (isLoading ? "…" : "")
+                ) : (
+                  extractText(m.content)
+                )}
               </div>
             </div>
           ))}
