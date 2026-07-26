@@ -17,12 +17,12 @@ Vollständige Architektur-Doku: `specs/SPEC-001-architecture-stack.md`.
 
 ## Tech-Stack (Kurzfassung)
 
-| Komponente    | Technologie              | Sprache           |
-|---------------|--------------------------|-------------------|
-| App-Shell + Bridge | Tauri 2 + Copilot SDK Rust | Rust         |
-| Subprozess    | Node.js v22+ + Copilot CLI | JavaScript     |
-| Frontend      | CopilotKit React         | TypeScript / JSX  |
-| LLM-Provider  | OpenAI-kompatibel        | n/a               |
+| Komponente         | Technologie                | Sprache                  |
+| ------------------ | -------------------------- | ------------------------ |
+| App-Shell + Bridge | Tauri 2 + Copilot SDK Rust | Rust                     |
+| Runtime            | Copilot CLI Runtime        | Node.js / native runtime |
+| Frontend           | React + CopilotKit UI      | TypeScript / JSX         |
+| LLM-Provider       | OpenAI-kompatibel          | n/a                      |
 
 Detaillierte Aufschlüsselung pro Layer in
 `specs/SPEC-001-architecture-stack.md`.
@@ -97,19 +97,21 @@ Detaillierte Aufschlüsselung pro Layer in
   Assistant-Message danach (gleiche UUID-v4-`session_id`). Cargo.toml
   erweitert um `chrono = "0.4"` + `uuid = "1" (v4)`. `cargo check`
   exit 0 (1.98s nach Compile-Cache).
-- **2026-07-18 (M7 abgeschlossen — Chat-UI mit CopilotKit)**:
-  `src/ChatWindow.tsx` (Component mit `<CopilotKit runtime={tauriRuntime}>`-
-  Provider, `useCopilotChat()`-Hook, MessageList + InputBox + Sidebar für
-  Session-Liste). Custom `tauriRuntime` als Bridge zwischen CopilotKit-Hook
-  und `chat_send`-IPC-Command (kein externes HTTP-Backend, alles lokal).
-  Sidebar ruft `history_list_sessions` beim Mount, klickbare Sessions
-  rufen `history_load_session` (v1: log-only, Display in v1.1).
-  `src/ChatWindow.css` Dark-Theme-Styling (Sidebar 240px, Messages
-  links/rechts-bündig, InputBox fixiert unten, auto-scroll zur neuesten
-  Message). `src/App.tsx` erweitert: zeigt `<ChatWindow />` statt
-  Hero/Tech-Stack-Section wenn Config geladen. Settings-Button oben
-  rechts öffnet weiterhin `<ConfigDialog />`. `tsc -p src/tsconfig.json`
-  exit 0.
+- **2026-07-18 (M7 abgeschlossen — Chat-UI)**:
+  `src/ChatWindow.tsx` mit lokaler Message-State-Logik, Sidebar für
+  Session-Liste, InputBox und Tauri-IPC-Command `chat_send`. CopilotKit
+  bleibt als UI-Option in der Architektur, aber nicht als Runtime-
+  Provider im Frontend. `src/ChatWindow.css` Dark-Theme-Styling
+  (Sidebar 240px, Messages links/rechts-bündig, InputBox unten,
+  auto-scroll zur neuesten Message). `src/App.tsx` zeigt
+  `<ChatWindow />`, sobald Config geladen ist.
+
+- **2026-07-26 (Runtime-Migration abgeschlossen)**:
+  Der manuelle ACP-Handshake wurde durch das offizielle Rust-SDK
+  (`github-copilot-sdk`) ersetzt. Die Tauri-Rust-Bridge erstellt
+  Sessions über `Client::create_session(...)` + `ProviderConfig` und
+  sendet Nachrichten via `send_and_wait(...)`. BYOK mit MiniMax läuft
+  erfolgreich end-to-end (`ping` → `Pong!`).
 - **2026-07-19 (CI-Pipeline grün — rc1 bis rc17)**:
   13 Pipeline-Fixes nötig (Commits `30e6208`–`33be1fb` Fix #6–#14) nach
   initialem Workflow-Commit aus M9. Hauptprobleme: PowerShell-`exec` +
@@ -130,16 +132,16 @@ Detaillierte Aufschlüsselung pro Layer in
 
 ## Git
 
-| Feld                    | Wert                                                              |
-|-------------------------|-------------------------------------------------------------------|
-| **Repo-Typ**            | GitHub (public)                                                   |
-| **Pfad / URL**          | `https://github.com/schirkan/my-copilot`                          |
-| **Lokaler Pfad**        | `C:\Users\Admin\.openclaw\workspace\projects\my-copilot`          |
-| **Remote(s)**           | `origin` → `https://github.com/schirkan/my-copilot.git`           |
-| **Default-Branch**      | `main`                                                            |
-| **Eingerichtet am**     | 2026-07-17                                                        |
-| **`.gitignore`-Status** | vorhanden                                                         |
-| **Lizenz**              | MIT (siehe `LICENSE`)                                            |
+| Feld                    | Wert                                                     |
+| ----------------------- | -------------------------------------------------------- |
+| **Repo-Typ**            | GitHub (public)                                          |
+| **Pfad / URL**          | `https://github.com/schirkan/my-copilot`                 |
+| **Lokaler Pfad**        | `C:\Users\Admin\.openclaw\workspace\projects\my-copilot` |
+| **Remote(s)**           | `origin` → `https://github.com/schirkan/my-copilot.git`  |
+| **Default-Branch**      | `main`                                                   |
+| **Eingerichtet am**     | 2026-07-17                                               |
+| **`.gitignore`-Status** | vorhanden                                                |
+| **Lizenz**              | MIT (siehe `LICENSE`)                                    |
 
 > Hinweis: Der OpenClaw-Workspace-Root (`C:\Users\Admin\.openclaw\workspace`)
 > ist ein separates Git-Repo. `projects/my-copilot/` ist dort **nicht**
@@ -153,22 +155,22 @@ Detaillierte Aufschlüsselung pro Layer in
 
 ### Pipeline-Schritte (14)
 
-| # | Step | Action |
-|---|---|---|
-| 1 | Set up job | Runner-Init |
-| 2 | Checkout | `actions/checkout@v5` |
-| 3 | Setup Node.js | `actions/setup-node@v5`, Node 22 |
-| 4 | Setup Rust | `dtolnay/rust-toolchain@stable` |
-| 5 | Cache cargo registry | `Swatinem/rust-cache@v2` |
-| 6 | Install npm dependencies (frontend) | `npm ci` |
-| 7 | Install npm dependencies (Copilot CLI) | `npm install @github/copilot-cli` (bash) |
-| 8 | Install tauri-cli | via `npm ci` (Schritt 6) — spart ~5–10 Min/Run ggü. `cargo install` |
-| 9 | Build frontend (tsc + vite) | `cd "$GITHUB_WORKSPACE" && npm run build` (bash, cwd-agnostisch) |
-| 10 | Build Tauri app (no-bundle) | `cd "$GITHUB_WORKSPACE/src-tauri" && npm exec -- tauri build --no-bundle` (bash) |
-| 11 | Locate Tauri build output | `Get-ChildItem -Filter "my-copilot.exe"` (pwsh) |
-| 12 | Assemble portable bundle | Kopiert Binary + Cargo-Deps in `bin/` (pwsh) |
-| 13 | Upload artifact | `actions/upload-artifact@v5` |
-| 14 | Create GitHub Release | `softprops/action-gh-release@v3` (ZIP) |
+| #   | Step                                   | Action                                                                           |
+| --- | -------------------------------------- | -------------------------------------------------------------------------------- |
+| 1   | Set up job                             | Runner-Init                                                                      |
+| 2   | Checkout                               | `actions/checkout@v5`                                                            |
+| 3   | Setup Node.js                          | `actions/setup-node@v5`, Node 22                                                 |
+| 4   | Setup Rust                             | `dtolnay/rust-toolchain@stable`                                                  |
+| 5   | Cache cargo registry                   | `Swatinem/rust-cache@v2`                                                         |
+| 6   | Install npm dependencies (frontend)    | `npm ci`                                                                         |
+| 7   | Install npm dependencies (Copilot CLI) | `npm install @github/copilot-cli` (bash)                                         |
+| 8   | Install tauri-cli                      | via `npm ci` (Schritt 6) — spart ~5–10 Min/Run ggü. `cargo install`              |
+| 9   | Build frontend (tsc + vite)            | `cd "$GITHUB_WORKSPACE" && npm run build` (bash, cwd-agnostisch)                 |
+| 10  | Build Tauri app (no-bundle)            | `cd "$GITHUB_WORKSPACE/src-tauri" && npm exec -- tauri build --no-bundle` (bash) |
+| 11  | Locate Tauri build output              | `Get-ChildItem -Filter "my-copilot.exe"` (pwsh)                                  |
+| 12  | Assemble portable bundle               | Kopiert Binary + Cargo-Deps in `bin/` (pwsh)                                     |
+| 13  | Upload artifact                        | `actions/upload-artifact@v5`                                                     |
+| 14  | Create GitHub Release                  | `softprops/action-gh-release@v3` (ZIP)                                           |
 
 ### Versioning-Strategie
 
@@ -199,27 +201,27 @@ Gesamtgröße: ~80–100 MB. Kein Code-Signing in v1 (v3-Feature).
 
 13 Iterationen von rc1 bis rc14 nötig. Hauptlessons:
 
-| # | Lesson | Fix |
-|---|---|---|
-| 1 | PowerShell-`Set-Location` propagiert nicht zu `[Environment]::CurrentDirectory` | `$GITHUB_WORKSPACE` + explizite `cd` in `run:` |
-| 2 | `working-directory` + PowerShell-`exec` ist fragil | `shell: bash` für Steps mit Cwd-Manipulation |
-| 3 | Vite-Cwd-Loss via npm-Shim (`tsc`, `vite` als npm-Scripts) | cwd-agnostische Flags: `-p src/tsconfig.json`, `-c src/vite.config.ts` |
-| 4 | Vite `root: "src"` → Output landet in `src/dist/` | `outDir: "../dist"` explizit setzen |
-| 5 | `<script src="/src/main.tsx">` in `index.html` nicht resolvable | Relativ: `<script src="./main.tsx">` |
-| 6 | `cargo install tauri-cli` braucht ~5–10 Min Compile | `@tauri-apps/cli` via npm |
-| 7 | Binary-Filename = Cargo-Paketname (`my-copilot.exe`), NICHT `productName` | Scripts müssen `my-copilot.exe` matchen |
-| 8 | Tauri-Binary wird auch ohne `--bundles` gebaut (Artefakt liegt trotzdem da) | `--no-bundle` Flag (separater Assemble-Step) |
-| 9 | GitHub-Actions v4 läuft auf deprecated Node-20 | v5-Actions: `checkout@v5`, `setup-node@v5`, `upload-artifact@v5` |
-| 10 | Vite 8: `minify: "esbuild"` ist deprecated | `minify: true` (Vite-8-Default = Oxc) |
-| 11 | `transformWithEsbuild` durch Plugins → `esbuild` muss als devDep | `@vitejs/plugin-react@6` nutzt Oxc nativ, kein Workaround nötig |
+| #   | Lesson                                                                          | Fix                                                                    |
+| --- | ------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| 1   | PowerShell-`Set-Location` propagiert nicht zu `[Environment]::CurrentDirectory` | `$GITHUB_WORKSPACE` + explizite `cd` in `run:`                         |
+| 2   | `working-directory` + PowerShell-`exec` ist fragil                              | `shell: bash` für Steps mit Cwd-Manipulation                           |
+| 3   | Vite-Cwd-Loss via npm-Shim (`tsc`, `vite` als npm-Scripts)                      | cwd-agnostische Flags: `-p src/tsconfig.json`, `-c src/vite.config.ts` |
+| 4   | Vite `root: "src"` → Output landet in `src/dist/`                               | `outDir: "../dist"` explizit setzen                                    |
+| 5   | `<script src="/src/main.tsx">` in `index.html` nicht resolvable                 | Relativ: `<script src="./main.tsx">`                                   |
+| 6   | `cargo install tauri-cli` braucht ~5–10 Min Compile                             | `@tauri-apps/cli` via npm                                              |
+| 7   | Binary-Filename = Cargo-Paketname (`my-copilot.exe`), NICHT `productName`       | Scripts müssen `my-copilot.exe` matchen                                |
+| 8   | Tauri-Binary wird auch ohne `--bundles` gebaut (Artefakt liegt trotzdem da)     | `--no-bundle` Flag (separater Assemble-Step)                           |
+| 9   | GitHub-Actions v4 läuft auf deprecated Node-20                                  | v5-Actions: `checkout@v5`, `setup-node@v5`, `upload-artifact@v5`       |
+| 10  | Vite 8: `minify: "esbuild"` ist deprecated                                      | `minify: true` (Vite-8-Default = Oxc)                                  |
+| 11  | `transformWithEsbuild` durch Plugins → `esbuild` muss als devDep                | `@vitejs/plugin-react@6` nutzt Oxc nativ, kein Workaround nötig        |
 
 ### CI-Status (laufende Pipeline)
 
-| Tag-Phase | Status | Notes |
-|---|---|---|
-| **rc1–rc13** | ❌ rot | diverse Fehler (siehe Lessons Learned) |
-| **rc14–rc17** | ✅ grün | alle 14 Steps success, ZIP-Bundle erstellt |
-| **v0.1.0** | ⏳ pending | erster Stable-Tag (getaggt 2026-07-20 nach rc17) |
+| Tag-Phase     | Status    | Notes                                            |
+| ------------- | --------- | ------------------------------------------------ |
+| **rc1–rc13**  | ❌ rot     | diverse Fehler (siehe Lessons Learned)           |
+| **rc14–rc17** | ✅ grün    | alle 14 Steps success, ZIP-Bundle erstellt       |
+| **v0.1.0**    | ⏳ pending | erster Stable-Tag (getaggt 2026-07-20 nach rc17) |
 
 ## Project Files
 
@@ -232,7 +234,7 @@ Gesamtgröße: ~80–100 MB. Kein Code-Signing in v1 (v3-Feature).
 - `specs/SPEC-004-bridge-tauri-rust.md` — Tauri-Rust Bridge (Copilot
   SDK Rust, Subprozess-Management, IPC-Methoden)
 - `specs/SPEC-005-frontend-copilotkit-react.md` — Frontend mit
-  CopilotKit React
+  React + CopilotKit UI-Schicht
 - `specs/SPEC-006-config-dialog.md` — Konfigurations-Dialog (API Key,
   Base URL, System Prompt, MCP Servers)
 - `LICENSE` — MIT-Lizenztext
@@ -280,17 +282,17 @@ Gesamtgröße: ~80–100 MB. Kein Code-Signing in v1 (v3-Feature).
 
 ### Karten-Liste
 
-| # | Karte | Priority | Status | Labels | Card-ID |
-|---|---|---|---|---|---|
-| 1 | Tauri-Skeleton aufsetzen (Cargo.toml, src-tauri/, Hello-World) | high | **complete** | setup, tauri, milestone-1 | `a15846ee-201d-4a96-a2c7-48bcd47a700f` |
-| 2 | Tauri-Rust CLI-Bridge (Subprozess + JSON-RPC via Stdin/Stdout) | high | **complete** | bridge, rust, subprocess, milestone-2 | `26372b1f-1341-48fe-86d3-fad019be2305` |
-| 3 | Tauri-IPC-API definieren (Commands + Events + Streaming) | high | todo | ipc, tauri, milestone-2 | `9fb7796f-dcc6-47d1-892b-98a9849e140f` |
-| 4 | Config-Management (config.json, v1 Klartext + v3-DPAPI-TODO) | high | **complete** | config, rust, milestone-3 | `cff6cacd-cb5e-4700-981a-e915aef527a7` |
-| 5 | BYOK-Config-Dialog UI (React + Tauri-IPC) | high | **complete** | ui, config, react, milestone-3 | `fca83a1a-2c4b-48e6-a13f-6493d52d7c06` |
-| 6 | JSONL-Chat-History (Sessions, Append-only, Read) | normal | **complete** | persistence, jsonl, rust, milestone-4 | `58b4d704-ce27-46a0-adf8-2b2dd7ad1cc7` |
-| 7 | Chat-UI mit CopilotKit (Streaming + Tool-Calls) | normal | **complete** | ui, chat, copilotkit, react, milestone-4 | `ea56fa8a-d65d-4768-ae2c-ef31d3a7cf94` |
-| 8 | End-to-End-Smoke-Test (manuelles Test-Protokoll) | high | **complete** | test, e2e, milestone-5 | `291b9b51-2106-44a7-ae40-189079bf7bd1` |
-| 9 | Build-Pipeline + Distribution (ZIP + GitHub Release) | low | **complete** | build, distribution, milestone-6 | `54e45cbf-a3ed-4916-bcf8-49017f8dd7e6` |
+| #   | Karte                                                          | Priority | Status       | Labels                                   | Card-ID                                |
+| --- | -------------------------------------------------------------- | -------- | ------------ | ---------------------------------------- | -------------------------------------- |
+| 1   | Tauri-Skeleton aufsetzen (Cargo.toml, src-tauri/, Hello-World) | high     | **complete** | setup, tauri, milestone-1                | `a15846ee-201d-4a96-a2c7-48bcd47a700f` |
+| 2   | Tauri-Rust CLI-Bridge (Subprozess + JSON-RPC via Stdin/Stdout) | high     | **complete** | bridge, rust, subprocess, milestone-2    | `26372b1f-1341-48fe-86d3-fad019be2305` |
+| 3   | Tauri-IPC-API definieren (Commands + Events + Streaming)       | high     | todo         | ipc, tauri, milestone-2                  | `9fb7796f-dcc6-47d1-892b-98a9849e140f` |
+| 4   | Config-Management (config.json, v1 Klartext + v3-DPAPI-TODO)   | high     | **complete** | config, rust, milestone-3                | `cff6cacd-cb5e-4700-981a-e915aef527a7` |
+| 5   | BYOK-Config-Dialog UI (React + Tauri-IPC)                      | high     | **complete** | ui, config, react, milestone-3           | `fca83a1a-2c4b-48e6-a13f-6493d52d7c06` |
+| 6   | JSONL-Chat-History (Sessions, Append-only, Read)               | normal   | **complete** | persistence, jsonl, rust, milestone-4    | `58b4d704-ce27-46a0-adf8-2b2dd7ad1cc7` |
+| 7   | Chat-UI mit CopilotKit (Streaming + Tool-Calls)                | normal   | **complete** | ui, chat, copilotkit, react, milestone-4 | `ea56fa8a-d65d-4768-ae2c-ef31d3a7cf94` |
+| 8   | End-to-End-Smoke-Test (manuelles Test-Protokoll)               | high     | **complete** | test, e2e, milestone-5                   | `291b9b51-2106-44a7-ae40-189079bf7bd1` |
+| 9   | Build-Pipeline + Distribution (ZIP + GitHub Release)           | low      | **complete** | build, distribution, milestone-6         | `54e45cbf-a3ed-4916-bcf8-49017f8dd7e6` |
 
 ### Milestone-Übersicht
 

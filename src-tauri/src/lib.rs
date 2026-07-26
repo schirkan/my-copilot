@@ -18,14 +18,14 @@ pub fn run() {
     .try_init();
 
     tauri::Builder::default()
+        .plugin(tauri_plugin_shell::init())
         .setup(|app| {
-            // exe-Verzeichnis bestimmen (für CopilotCliProcess::start)
+            // exe-Verzeichnis bestimmen (für Working-Dir-Defaults)
             let exe_dir = std::env::current_exe()
                 .ok()
                 .and_then(|p| p.parent().map(|p| p.to_path_buf()))
                 .unwrap_or_else(|| std::path::PathBuf::from("."));
-            let mut state = AppState::default();
-            state.exe_dir = exe_dir.clone();
+            let mut state = AppState::new(app.handle().clone(), exe_dir.clone());
             log::info!("AppState initialisiert: exe_dir = {:?}", state.exe_dir);
 
             // Config aus config.json laden (v1: Klartext, v2-TODO: DPAPI-entschlüsselt)

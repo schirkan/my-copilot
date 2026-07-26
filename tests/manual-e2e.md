@@ -50,12 +50,12 @@ Hand ausgeführt und das Ergebnis in den Checkboxen dokumentiert.
 - [ ] Senden klicken (oder Enter)
 - [ ] User-Message erscheint als Bubble rechts
 - [ ] Loading-Spinner oder "… denke nach …" während Wartezeit
-- [ ] Assistant-Antwort erscheint (non-streaming v1: komplette Antwort auf einmal)
+- [ ] Assistant-Antwort erscheint (v1: komplette Antwort auf einmal)
 - [ ] Assistant-Bubble links mit Antwort "4" oder ähnlich
 - [ ] Input-Feld wird geleert nach Send
 - [ ] Auto-Scroll zur neuesten Message
-- [ ] Sidebar zeigt neue Session mit title "Was ist 2+2?" (gekürzt auf 50 chars)
-- [ ] Session zeigt `1 msgs · gpt-4o` (oder ähnlich)
+- [ ] Sidebar zeigt neue Session mit Titel der User-Message (gekürzt auf 50 chars)
+- [ ] Session zeigt `N msgs · <model>`
 - [ ] `data/sessions/{session-id}.jsonl` prüfen:
   ```bash
   ls data/sessions/
@@ -66,8 +66,8 @@ Hand ausgeführt und das Ergebnis in den Checkboxen dokumentiert.
 ### Test 4 — History-Persistenz
 
 - [ ] Weitere 2-3 Messages in der gleichen Session senden
-- [ ] Session in Sidebar anklicken → Console-Log zeigt `Loaded N messages`
-- [ ] (v1.1 TODO: Messages werden im Hauptfenster angezeigt; v1: log-only)
+- [ ] Session in Sidebar anklicken → gespeicherte Messages werden im Hauptfenster angezeigt
+- [ ] Session in Sidebar über `×` löschen → Eintrag verschwindet sofort
 - [ ] `data/sessions/{session-id}.jsonl` enthält jetzt 5-7 Messages (append-only)
 - [ ] Jede Zeile ist gültiges JSON mit `id`, `request_id`, `role`, `content`, `ts`, `model`, `tokens`
 
@@ -94,8 +94,8 @@ Hand ausgeführt und das Ergebnis in den Checkboxen dokumentiert.
 
 - [ ] Während App läuft: DevTools öffnen (z. B. via Tauri-Plugin oder `tauri::Manager::devtools`)
 - [ ] Console: `await __TAURI__.core.invoke("process_health")`
-- [ ] Response zeigt `{cli_running: true, cli_ready: true, bridge_initialized: true|false}`
-- [ ] Eine Nachricht senden → währenddessen erneut `process_health` → `bridge_initialized: true` (oder `false` nach Send)
+- [ ] Response zeigt mindestens `config_loaded`, `last_chat_ok`, `note`
+- [ ] Eine Nachricht senden → `process_health` bleibt aufrufbar
 - [ ] Console: `await __TAURI__.core.invoke("process_restart")` → kein Fehler
 - [ ] Nächste Message funktioniert (neue Bridge wurde gespawnt)
 
@@ -136,7 +136,6 @@ Hand ausgeführt und das Ergebnis in den Checkboxen dokumentiert.
 ## Bekannte Limitierungen (v1)
 
 - **Kein Token-für-Token-Streaming**: `chat_send` ist non-streaming. Die Antwort kommt als kompletter String auf einmal, nicht chunk-weise. Echtes Streaming kommt in v1.1 via Tauri-Events (`chat_chunk`).
-- **History-Load zeigt nur log**: Bei Sidebar-Klick auf eine Session wird nur `console.info` geloggt. Die Messages werden nicht im Hauptfenster angezeigt. Das kommt in v1.1.
 - **Kein Markdown-Rendering**: Assistant-Responses werden als Plain-Text angezeigt. `react-markdown` Integration kommt in v1.1.
 - **Tool-Calls nur als Badge-Stubs**: MCP-Server-Tool-Calls werden in v1 nicht im UI dargestellt, sondern nur an die CLI durchgereicht. Tool-Definitionen via `useCopilotAction` kommen in v2 mit vollständiger MCP-Integration.
 

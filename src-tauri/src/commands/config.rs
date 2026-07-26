@@ -17,6 +17,16 @@ pub struct ConfigDto {
     pub api_key: String,
     pub model: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub provider_wire_api: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub provider_bearer_token: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub provider_headers: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub provider_model_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub provider_wire_model: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub system_prompt: Option<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub mcp_servers: Vec<McpServer>,
@@ -28,6 +38,11 @@ impl From<&ByokConfig> for ConfigDto {
             endpoint: c.endpoint.clone(),
             api_key: c.api_key.clone(),
             model: c.model.clone(),
+            provider_wire_api: c.provider_wire_api.clone(),
+            provider_bearer_token: c.provider_bearer_token.clone(),
+            provider_headers: c.provider_headers.clone(),
+            provider_model_id: c.provider_model_id.clone(),
+            provider_wire_model: c.provider_wire_model.clone(),
             system_prompt: c.system_prompt.clone(),
             mcp_servers: c.mcp_servers.clone(),
         }
@@ -36,10 +51,26 @@ impl From<&ByokConfig> for ConfigDto {
 
 impl From<ConfigDto> for ByokConfig {
     fn from(d: ConfigDto) -> Self {
+        fn normalize(value: Option<String>) -> Option<String> {
+            value.and_then(|text| {
+                let trimmed = text.trim();
+                if trimmed.is_empty() {
+                    None
+                } else {
+                    Some(trimmed.to_string())
+                }
+            })
+        }
+
         Self {
             endpoint: d.endpoint,
             api_key: d.api_key,
             model: d.model,
+            provider_wire_api: normalize(d.provider_wire_api),
+            provider_bearer_token: normalize(d.provider_bearer_token),
+            provider_headers: normalize(d.provider_headers),
+            provider_model_id: normalize(d.provider_model_id),
+            provider_wire_model: normalize(d.provider_wire_model),
             system_prompt: d.system_prompt,
             mcp_servers: d.mcp_servers,
         }

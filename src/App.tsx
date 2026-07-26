@@ -90,13 +90,6 @@ function App() {
       </header>
 
       <ChatWindow />
-
-      <footer className="footer">
-        <small>
-          Architektur: SPEC-001 · Bundle: SPEC-002 · Persistence: JSONL
-          (siehe DECISIONS.md)
-        </small>
-      </footer>
     </main>
   );
 }

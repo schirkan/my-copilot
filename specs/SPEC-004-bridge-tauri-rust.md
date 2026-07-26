@@ -1,6 +1,6 @@
 # SPEC-004 — Tauri-Rust Bridge (Copilot SDK Rust)
 
-**Status:** Planungs-Phase, kein Code
+**Status:** Implementierung in Arbeit
 **Datum:** 2026-07-17 (initial) / 2026-07-17 (rewrite: C# → Rust)
 **Bezug:** SPEC-001 § Tech-Entscheidungen (Tauri-Rust Bridge) ·
 SPEC-005 § IPC-Anbindung · `DECISIONS.md` § Architektur-Verschlankung
@@ -8,9 +8,10 @@ SPEC-005 § IPC-Anbindung · `DECISIONS.md` § Architektur-Verschlankung
 ## Übersicht
 
 Tauri-Rust ist nicht nur die App-Shell, sondern auch die **einzige
-Bridge zwischen Frontend (CopilotKit React) und Copilot CLI**. Es
-verwaltet den CLI-Subprozess, spricht JSON-RPC via Stdin/Stdout
-(durch Copilot SDK Rust) und relayt Chunks via Tauri-Events an React.
+Bridge zwischen Frontend und GitHub Copilot SDK for Rust**. Die Bridge
+verwendet den offiziellen SDK-Client statt manueller ACP-Nachrichten,
+konfiguriert BYOK über `ProviderConfig` und ruft Session-/Message-
+Operationen über die SDK-API auf.
 
 **Wichtig:** Es wird **kein Port** für IPC geöffnet — weder HTTP noch
 Named Pipe noch TCP. Alle Inter-Prozess-Kommunikation läuft über
@@ -19,11 +20,11 @@ OS-Pipes (Stdin/Stdout des Subprozesses).
 ## Komponenten-Stapel
 
 ```
-React (CopilotKit)
+React (lokale Chat-UI)
   ↕ Tauri-IPC (Commands + Events, intern — kein Netzwerk)
 Tauri-Rust (App-Shell + Bridge)
-  ├── spawnt Subprozess
-  └── JSON-RPC via Stdin/Stdout-Pipes (Copilot SDK Rust)
+    ├── github_copilot_sdk::Client
+    └── SessionConfig + ProviderConfig (BYOK)
 Copilot CLI (Node.js-App, embedded)
   ↕ HTTPS / SSE
 OpenAI-kompatibler Endpoint
@@ -32,25 +33,21 @@ OpenAI-kompatibler Endpoint
 **Zwei Prozesse zur Laufzeit**: Tauri-Rust (App-Shell + Bridge) ·
 Node.js+CLI.
 
-## IPC-Architektur
+## SDK-Architektur
 
 ```
-React (CopilotKit)              Tauri-Rust (Bridge)              Copilot CLI
-   │                                  │                                │
-   │ invoke('chat.send')              │                                │
-   ├─────────────────────────────────►│                                │
-   │   (Tauri-Command)                │                                │
-   │                                  │ JSON-RPC                       │
-   │                                  │ {"method":"chat",...}          │
-   │                                  ├───────────────────────────────►│
-   │                                  │   (Stdin)                      │
-   │                                  │                                │
-   │                                  │ ◄─── Stream-Chunks ────────────│
-   │                                  │   (Stdout)                     │
-   │                                  │                                │
-   │ onChunk → emit('chat.chunk')     │                                │
-   │◄─────────────────────────────────│                                │
-   │   (Tauri-Event)                  │                                │
+React UI                    Tauri-Rust Bridge              github_copilot_sdk
+    │                              │                                 │
+    │ invoke('chat_send')          │                                 │
+    ├─────────────────────────────►│                                 │
+    │                              │ Client::start(...)              │
+    │                              ├────────────────────────────────►│
+    │                              │ create_session(config)         │
+    │                              ├────────────────────────────────►│
+    │                              │ session.send_and_wait(...)     │
+    │                              ├────────────────────────────────►│
+    │                              │ ◄──── assistant response ──────│
+    │ ◄────── final response ──────│                                 │
 ```
 
 **Zwei IPC-Layer**, beide ohne Netzwerk:
@@ -60,120 +57,67 @@ React (CopilotKit)              Tauri-Rust (Bridge)              Copilot CLI
 2. **Tauri-Rust ↔ CLI**: Stdin/Stdout-Pipes des Subprozesses
    (JSON-RPC, **kein Port**, kein HTTP, kein Named Pipe).
 
-## Subprozess-Management
+## SDK-Client-Lifecycle
 
-Tauri-Rust spawned die CLI als Subprozess via `tokio::process::Command`:
-
-```rust
-use tokio::process::{Command, Stdio};
-use std::path::Path;
-
-pub struct CopilotCliProcess {
-    child: tokio::process::Child,
-    stdin: tokio::process::ChildStdin,
-    stdout: tokio::process::ChildStdout,
-}
-
-impl CopilotCliProcess {
-    pub async fn start(exe_dir: &Path) -> Result<Self, Error> {
-        let node_exe = exe_dir.join("node").join(
-            if cfg!(windows) { "node.exe" } else { "node" }
-        );
-        let cli_entry = exe_dir.join("copilot-cli").join("index.js");
-
-        let mut child = Command::new(&node_exe)
-            .arg(&cli_entry)
-            .env("COPILOT_HOME", exe_dir.join("copilot-cli"))
-            .env("NODE_PATH", exe_dir.join("copilot-cli").join("node_modules"))
-            // Wichtig: PATH nicht ändern, sonst Kollision mit System-Node
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .kill_on_drop(true)
-            .spawn()?;
-
-        let stdin  = child.stdin.take().ok_or(Error::NoStdin)?;
-        let stdout = child.stdout.take().ok_or(Error::NoStdout)?;
-        // stderr → async in Log schreiben (siehe Implementierung)
-
-        Ok(Self { child, stdin, stdout })
-    }
-
-    pub async fn wait_for_ready(
-        &mut self,
-        timeout: std::time::Duration,
-    ) -> Result<(), Error> {
-        // Lese erstes JSON-RPC-Response (Hello/Ready), max `timeout`
-    }
-}
-
-impl Drop for CopilotCliProcess {
-    fn drop(&mut self) {
-        // kill_on_drop=true kümmert sich automatisch
-    }
-}
-```
-
-**Wichtig**: `kill_on_drop(true)` sorgt dafür, dass der Subprozess
-sauber beendet wird, wenn Tauri-Rust ihn nicht mehr braucht (App-
-Close oder manueller Restart).
-
-## Copilot SDK Rust — Public API
+Die Bridge verwendet den offiziellen Rust-SDK-Client. Dieser verwaltet
+die Copilot-CLI-Runtime selbst und kapselt Spawn, Health-Checks,
+Transport und Session-Erzeugung.
 
 ```rust
-use copilot_sdk::{CopilotClient, ChatRequest, ChatChunk};
+use std::sync::Arc;
+use github_copilot_sdk::{Client, ClientOptions, CliProgram, MessageOptions};
+use github_copilot_sdk::handler::ApproveAllHandler;
+use github_copilot_sdk::types::{ProviderConfig, SessionConfig};
 
-pub struct CopilotService {
-    client: CopilotClient,
-    config: ByokConfig,
-}
+let mut provider = ProviderConfig::default();
+provider.provider_type = Some("openai".to_string());
+provider.base_url = "https://api.minimax.io/v1".to_string();
+provider.api_key = Some("...".to_string());
+provider.wire_api = Some("completions".to_string());
 
-impl CopilotService {
-    pub fn new(process: CopilotCliProcess, config: ByokConfig) -> Self {
-        Self {
-            client: CopilotClient::new(process),
-            config,
-        }
-    }
+let client = Client::start(
+    ClientOptions::default()
+        .with_program(CliProgram::Path(copilot_binary_path))
+).await?;
 
-    pub async fn chat_streaming(
-        &self,
-        user_message: String,
-    ) -> impl tokio_stream::Stream<Item = ChatChunk> {
-        self.client.chat_streaming(ChatRequest {
-            message: user_message,
-            model: self.config.model.clone(),
-            api_key: self.config.api_key.clone(),
-            base_url: self.config.endpoint.clone(),
-            system_prompt: self.config.system_prompt.clone(),
-            mcp_servers: self.config.mcp_servers.clone(),
-        })
-    }
-}
+let session = client.create_session(
+    SessionConfig::default()
+        .with_permission_handler(Arc::new(ApproveAllHandler))
+        .with_provider(provider)
+).await?;
+
+let response = session
+    .send_and_wait(MessageOptions::new("Hello"))
+    .await?;
 ```
 
-> Hinweis: Die exakte API richtet sich nach dem finalen
-> `github/copilot-sdk` Rust-Paket (Platzhalter). Bei Implementierung
-> ggf. anpassen.
+**Wichtig:** Die Bridge verwaltet weiterhin den Pfad zur eingebetteten
+CLI-Binary, aber nicht mehr das ACP- oder JSON-RPC-Protokoll selbst.
+
+## Bridge-Verantwortung
+
+Die Rust-Bridge ist für folgende Aufgaben zuständig:
+
+1. Laden und Persistieren der lokalen BYOK-Konfiguration.
+2. Auflösen oder Bundlen der Copilot-CLI-Runtime.
+3. Übersetzen der lokalen Config in `ProviderConfig` und `SessionConfig`.
+4. Aufruf von `Client::start`, `create_session`, `send` bzw. `send_and_wait`.
+5. Rückgabe der Assistant-Response an das Frontend via Tauri-Commands.
 
 ## IPC-Methoden (Tauri-Commands + Events)
 
-| Methode           | Richtung        | Payload                                                |
-|-------------------|-----------------|--------------------------------------------------------|
-| `chat.send`       | Frontend → Rust | `{message: string}`                                    |
-| `chat.cancel`     | Frontend → Rust | `{request_id: string}`                                 |
-| `chat.chunk`      | Rust → Frontend | `{request_id, text: string}` (Stream)                  |
-| `chat.done`       | Rust → Frontend | `{request_id, usage: TokenUsage}`                      |
-| `chat.error`      | Rust → Frontend | `{request_id, error: string}`                          |
-| `config.get`      | Frontend → Rust | `{}` → `{endpoint, model, systemPrompt, mcpServers}`   |
-| `config.set`      | Frontend → Rust | `{endpoint, apiKey, model, systemPrompt, mcpServers}`  |
-| `config.test`     | Frontend → Rust | `{endpoint, apiKey}` → `{ok, models}`                  |
-| `process.health`  | Frontend → Rust | `{}` → `{cli_running, cli_ready}`                      |
-| `process.restart` | Frontend → Rust | `{}` (Subprozess neu starten)                          |
+| Methode           | Richtung        | Payload                                               |
+| ----------------- | --------------- | ----------------------------------------------------- |
+| `chat.send`       | Frontend → Rust | `{message: string}`                                   |
+| `chat.cancel`     | Frontend → Rust | `{request_id: string}`                                |
+| `config.get`      | Frontend → Rust | `{}` → `{endpoint, model, systemPrompt, mcpServers}`  |
+| `config.set`      | Frontend → Rust | `{endpoint, apiKey, model, systemPrompt, mcpServers}` |
+| `config.test`     | Frontend → Rust | `{endpoint, apiKey}` → `{ok, models}`                 |
+| `process.health`  | Frontend → Rust | `{}` → `{cli_running, cli_ready}`                     |
+| `process.restart` | Frontend → Rust | `{}` (Subprozess neu starten)                         |
 
-Streaming-Pattern: Tauri-Event `chat.chunk` wird per
-`app_handle.emit("chat.chunk", payload)` emittiert. React subscribt
-via `listen("chat.chunk", ...)`.
+V1 kann weiter non-streaming bleiben; später kann `Session::subscribe()`
+für echtes Event-/Chunk-Streaming genutzt werden.
 
 ## Persistenz
 
@@ -193,28 +137,24 @@ File oder Migration zu SQLite.
 
 ## Fehlerbehandlung
 
-| Fehler                         | Reaktion                              |
-|--------------------------------|---------------------------------------|
-| Node.js nicht gefunden         | Setup-Screen mit Hinweis              |
-| Copilot CLI Crashed            | Auto-Restart (max 3 Versuche), dann User-Notification |
-| Stdin/Stdout-Pipe broken       | Auto-Restart, Frontend bekommt `process.restart`-Event |
-| BYOK-Endpoint 401              | „API-Key ungültig" → Settings-Dialog   |
-| BYOK-Endpoint 429              | Exponential Backoff + Fallback-Modell  |
-| BYOK-Endpoint Network-Error    | Retry mit User-Bestätigung             |
-| Tauri-IPC Timeout              | User-Notification „Bridge antwortet nicht" |
+| Fehler                      | Reaktion                                   |
+| --------------------------- | ------------------------------------------ |
+| CLI-Runtime nicht gefunden  | Setup-Screen mit Hinweis                   |
+| SDK-Client Startfehler      | User-Notification + Log-Ausgabe            |
+| BYOK-Provider 401           | „API-Key ungültig" → Settings-Dialog       |
+| BYOK-Endpoint 429           | Exponential Backoff + Fallback-Modell      |
+| BYOK-Endpoint Network-Error | Retry mit User-Bestätigung                 |
+| SDK-RPC-Fehler              | User-Notification „Bridge antwortet nicht" |
 
 ## Offene Punkte
 
-- **Sidecar-Lifecycle**: Tauri 2 `externalBin` (statisch konfiguriert,
-  automatischer Lifecycle) vs. manuelle `tokio::process::Command`-
-  Verwaltung (dynamischer, eigener Restart-Loop). Für Node.js-
-  Subprozess eher manuelle Verwaltung sinnvoll, da eigenes Restart-
-  Handling + Health-Checks gebraucht werden.
-- **Copilot SDK Rust — API-Stabilität**: SDK noch jung, API kann
-  sich noch ändern. Mitigation: in einer Bridge-Schicht gekapselt,
-  Refactor-Aufwand begrenzt.
-- **Streaming-Granularität**: Wie klein sind CLI-Chunks? Per Token,
-  per Satz, per Message? Bei Implementierung evaluieren.
+- **SDK-API-Stabilität**: Rust-SDK ist jung, aber offiziell. Mitigation:
+    Integrationslogik bleibt in einer Bridge-Schicht gekapselt.
+- **Streaming-Granularität**: `Session::subscribe()` vs. `send_and_wait()`.
+    V1 nutzt Einfachheit; Streaming kann später ergänzt werden.
+- **Bundling-Strategie**: SDK-`bundled-cli` vs. eigene Sidecar-Binary.
+    Für das bestehende Portable-Bundle muss die endgültige Strategie im
+    Build/Release-Pfad konsolidiert werden.
 - **Schema-Migration JSONL**: bei v1+ Schema-Changes für JSONL
   (rückwärtskompatibel via Default-Werte pro Feld).
 

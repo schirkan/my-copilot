@@ -1,9 +1,24 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Default capabilities for the main window (skeleton — wird in späteren Karten erweitert)",
-  "windows": ["main"],
+  "description": "Default capabilities for the main window. Allows the Tauri shell plugin to spawn the bundled copilot-cli sidecar.",
+  "windows": [
+    "main"
+  ],
   "permissions": [
-    "core:default"
+    "core:default",
+    {
+      "identifier": "shell:allow-spawn",
+      "allow": [
+        {
+          "name": "binaries/copilot",
+          "sidecar": true,
+          "args": [
+            "--acp",
+            "--stdio"
+          ]
+        }
+      ]
+    }
   ]
 }

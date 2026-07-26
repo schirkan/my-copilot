@@ -39,6 +39,16 @@ pub struct EndpointConfig {
     /// Verschlüsselung (siehe DECISIONS.md § Config-Storage-v1-plaintext).
     pub api_key: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bearer_token: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub wire_api: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub headers: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub model_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub wire_model: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub deployment_name: Option<String>,
 }
 
@@ -91,6 +101,11 @@ impl Config {
                 r#type: "openai-compatible".to_string(),
                 base_url: byok.endpoint.clone(),
                 api_key: byok.api_key.clone(),
+                bearer_token: byok.provider_bearer_token.clone(),
+                wire_api: byok.provider_wire_api.clone(),
+                headers: byok.provider_headers.clone(),
+                model_id: byok.provider_model_id.clone(),
+                wire_model: byok.provider_wire_model.clone(),
                 deployment_name: None,
             },
             model: ModelConfig {
@@ -116,6 +131,11 @@ impl Config {
             endpoint: self.endpoint.base_url.clone(),
             api_key: self.endpoint.api_key.clone(),
             model: self.model.default.clone(),
+            provider_wire_api: self.endpoint.wire_api.clone(),
+            provider_bearer_token: self.endpoint.bearer_token.clone(),
+            provider_headers: self.endpoint.headers.clone(),
+            provider_model_id: self.endpoint.model_id.clone(),
+            provider_wire_model: self.endpoint.wire_model.clone(),
             system_prompt: self.system_prompt.clone(),
             mcp_servers: self.mcp_servers.clone(),
         })

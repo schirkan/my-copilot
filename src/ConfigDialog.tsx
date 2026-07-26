@@ -15,6 +15,11 @@ interface Config {
   endpoint: string;
   api_key: string;
   model: string;
+  provider_wire_api?: string;
+  provider_bearer_token?: string;
+  provider_headers?: string;
+  provider_model_id?: string;
+  provider_wire_model?: string;
   system_prompt?: string;
   mcp_servers: McpServer[];
 }
@@ -45,6 +50,11 @@ const EMPTY_CONFIG: Config = {
   endpoint: "",
   api_key: "",
   model: "",
+  provider_wire_api: "",
+  provider_bearer_token: "",
+  provider_headers: "",
+  provider_model_id: "",
+  provider_wire_model: "",
   system_prompt: "",
   mcp_servers: [],
 };
@@ -241,6 +251,52 @@ export default function ConfigDialog({ onClose, initialConfig }: Props) {
                   {testing ? "Testing…" : "Test Endpoint"}
                 </button>
               </div>
+
+              <label htmlFor="cfg-wire-api">Wire API</label>
+              <input
+                id="cfg-wire-api"
+                type="text"
+                placeholder="completions oder responses"
+                value={config.provider_wire_api ?? ""}
+                onChange={(e) => setConfig({ ...config, provider_wire_api: e.target.value })}
+              />
+
+              <label htmlFor="cfg-bearer-token">Bearer Token (optional)</label>
+              <input
+                id="cfg-bearer-token"
+                type="password"
+                placeholder="Bearer Token statt API-Key"
+                value={config.provider_bearer_token ?? ""}
+                onChange={(e) => setConfig({ ...config, provider_bearer_token: e.target.value })}
+              />
+
+              <label htmlFor="cfg-provider-model-id">Provider Model ID (optional)</label>
+              <input
+                id="cfg-provider-model-id"
+                type="text"
+                placeholder="MiniMax-M3"
+                value={config.provider_model_id ?? ""}
+                onChange={(e) => setConfig({ ...config, provider_model_id: e.target.value })}
+              />
+
+              <label htmlFor="cfg-wire-model">Wire Model (optional)</label>
+              <input
+                id="cfg-wire-model"
+                type="text"
+                placeholder="Modelname fuer Provider-Request"
+                value={config.provider_wire_model ?? ""}
+                onChange={(e) => setConfig({ ...config, provider_wire_model: e.target.value })}
+              />
+
+              <label htmlFor="cfg-provider-headers">Provider Headers (optional)</label>
+              <textarea
+                id="cfg-provider-headers"
+                placeholder={"X-Custom-Header: value\nX-Tenant: foo"}
+                value={config.provider_headers ?? ""}
+                onChange={(e) => setConfig({ ...config, provider_headers: e.target.value })}
+                rows={4}
+              />
+
               {testResult && (
                 <div
                   className={

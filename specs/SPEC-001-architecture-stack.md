@@ -8,21 +8,21 @@ BYOK, Agent-Runtime, portable App).
 ## Übersicht
 
 `My Copilot` ist eine portable Desktop-App für KI-Agent-Workflows.
-Architektur folgt dem „embedded Node.js"-Ansatz (vorher evaluiert als
-„Option ②" der Diskussion), um die GitHub Copilot SDK-UX
-(Read/Write/Edit/Bash-Tooling out-of-the-box) zu nutzen, ohne dass der
-End-User Node.js separat installieren muss.
+Architektur trennt klar zwischen **UI-Schicht** und **Runtime-
+Schicht**: Das Frontend kann CopilotKit-Komponenten für die Chat-UX
+verwenden, während Tauri-Rust das offizielle Rust-SDK als einzigen
+Runtime-/Agent-Layer nutzt.
 
 ## Komponenten-Stapel
 
 ```
 ┌────────────────────────────────────────────────────────────┐
-│ Tauri WebView (CopilotKit React Frontend)                   │
+│ Tauri WebView (React + CopilotKit UI)                      │
 │   ↕ Tauri-IPC (Commands + Events, intern — kein Netzwerk)  │
 │ Tauri Rust Core (App-Shell + Bridge)                       │
-│   ├── spawnt Subprozess                                    │
-│   └── JSON-RPC via Stdin/Stdout-Pipes (Copilot SDK Rust)   │
-│ GitHub Copilot CLI (Node.js-App, embedded)                 │
+│   ├── github_copilot_sdk::Client                           │
+│   └── ProviderConfig / SessionConfig                       │
+│ GitHub Copilot CLI runtime                                 │
 │   ↓ HTTPS / SSE                                             │
 │ OpenAI-kompatibler Endpoint                                 │
 │   (Azure OpenAI · self-hosted vLLM/LM-Studio · OpenRouter)  │
@@ -61,24 +61,25 @@ noch Named Pipe noch TCP. Alle Inter-Prozess-Kommunikation läuft
   Mitigation: Tauri ist Rust-nativ, große Community, viele
   Beispiele für genau dieses Subprozess-Pattern.
 
-### GitHub Copilot CLI (statt direkter OpenAI-Aufruf)
+### GitHub Copilot SDK + CLI Runtime
 
-- **Warum**: Copilot CLI bietet **Read/Write/Edit/Bash/Glob/Grep/
-  WebFetch** out-of-the-box. Diese Tools sind schwer nachzubauen und
-  sparen Monate an Eigenentwicklung.
-- **Stand**: v1.0.6 vom 08.07.2026, aktiv gepflegt von GitHub.
-- **BYOK-Engine**: identisch zu VSCode-1.129-Copilot-Agent-Host.
-- **Trade-off**: +100 MB Bundle-Size, dritter Prozess.
+- **Warum**: Das offizielle SDK kapselt Session-Lifecycle,
+  Permission-Handling, Hooks und BYOK-Konfiguration auf einem höheren
+  Level als ein manueller ACP-Client.
+- **Runtime darunter**: Die Copilot-CLI-Engine bleibt erhalten, wird
+  aber über den SDK-Client angesprochen statt per handgebautem ACP.
+- **Trade-off**: Die Runtime bleibt ein zusätzlicher Prozess bzw. eine
+  eingebettete Laufzeitkomponente.
 
-### CopilotKit React (Frontend)
+### React-Frontend + CopilotKit UI
 
-- **Warum**: Speziell für Copilot-SDK-Backend gebaut, Generative UI
-  out-of-the-box.
-- **API**: `useCopilotChat`, `<CopilotKit>`, `<CopilotPopup>` — React-
-  native Hooks / Komponenten.
-- **Alternative evaluiert**: `assistant-ui` (YC W25, framework-
-  agnostic). Habe CopilotKit gewählt wegen direktem Bezug zu
-  Copilot SDK.
+- **Warum**: CopilotKit kann für Chat-Präsentation, Message-Komponenten
+  und perspektivisch Tool-/Generative-UI nützlich bleiben.
+- **Wichtig**: CopilotKit wird **nicht** als Runtime- oder Transport-
+  Layer genutzt. Kein `runtimeUrl`, kein `publicApiKey`, kein direkter
+  Cloud-Handshake aus dem Frontend.
+- **Datenfluss**: Submit/Antworten laufen ausschließlich über
+  Tauri-IPC ↔ Rust-SDK.
 
 ### Embedded Node.js
 
@@ -91,13 +92,13 @@ noch Named Pipe noch TCP. Alle Inter-Prozess-Kommunikation läuft
 
 ## Trade-offs (ehrlich)
 
-| Vorteil                                | Nachteil                                  |
-|----------------------------------------|-------------------------------------------|
-| Copilot-Tools out-of-the-box           | +100 MB Bundle-Size (Node.js+CLI+Deps)    |
-| BYOK native                            | 2 Prozesse zur Laufzeit (Tauri/CLI)       |
-| Portable Folder, kein Installer        | Rust-Lernkurve (Martin: 20+ Jahre .NET)   |
-| Tauri-Rust als Bridge = eine Sprache   | Breaking-Changes bei SDK-Updates möglich  |
-| Kein C# / kein Port / kein HTTP-IPC    | TS-Ökosystem-Examples entfernt            |
+| Vorteil                                  | Nachteil                                                   |
+| ---------------------------------------- | ---------------------------------------------------------- |
+| Offizieller SDK-Layer statt ACP-Bastelei | Zusätzliche Runtime-Komponente bleibt                      |
+| BYOK offiziell dokumentiert              | Rust-SDK jung, API kann sich bewegen                       |
+| Portable Folder, kein Installer          | Rust-Lernkurve (Martin: 20+ Jahre .NET)                    |
+| Tauri-Rust als Bridge = eine Sprache     | Bundle-/Runtime-Strategie muss sauber sein                 |
+| Kein C# / kein Port / kein HTTP-IPC      | Saubere Trennung UI vs. Runtime muss diszipliniert bleiben |
 
 ## Plattform-Annahmen (fix)
 

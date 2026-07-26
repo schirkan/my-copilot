@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { CopilotKit } from "@copilotkit/react-core";
 import "./ChatWindow.css";
 
 interface SessionMeta {
@@ -21,6 +20,12 @@ interface ChatMessage {
   id: string;
   role: string;
   content: string | ChatContentPart[];
+}
+
+interface PersistedMessage {
+  id: string;
+  role: string;
+  content: string;
 }
 
 function extractText(content: string | ChatContentPart[] | undefined): string {
@@ -49,12 +54,10 @@ function makeId(): string {
  * Architektur (siehe SPEC-001 + SPEC-005):
  *  - Tauri-IPC-Command `chat_send` ruft den Copilot-SDK-Subprozess
  *    über die Tauri-Rust-Bridge auf (kein HTTP, kein externes Backend).
- *  - `<CopilotKit>` bleibt im Tree, damit der Kontext für ggf. später
- *    verwendete CopilotKit-Hooks bereitsteht (useCopilotAction,
- *    useFrontendTool, etc.). Der Remote-Runtime-Pfad (`runtimeUrl`)
- *    wird NICHT verwendet — wir übergeben einen Platzhalter, damit
- *    die Prop-Validation nicht crasht. Inhaltlich geht der gesamte
- *    Chat über `chat_send`.
+ *  - CopilotKit ist aktuell bewusst NICHT im Render-Tree. Die lokale
+ *    Chat-Logik spricht direkt Tauri-IPC `chat_send`; ein CopilotKit-
+ *    Provider würde in v1.63.x sonst automatisch eine Runtime-Info
+ *    gegen die CopilotKit-Cloud auflösen.
  *  - Frühere Versuche mit `useCopilotChat({ onSubmitMessage })` oder
  *    `appendMessage(plainObject)` crashen, weil der Hook in v1.63.1
  *    CopilotKit-Message-Instanzen (mit `isResultMessage()`) erwartet
@@ -140,6 +143,9 @@ function ChatInner() {
                 "history_list_sessions",
               );
               setSessions(list);
+              if (list.length > 0) {
+                setCurrentSessionId(list[0].session_id);
+              }
             } catch (e) {
               // eslint-disable-next-line no-console
               console.error("history_list_sessions failed:", e);
@@ -151,18 +157,38 @@ function ChatInner() {
 
   async function handleLoadSession(sessionId: string) {
     setCurrentSessionId(sessionId);
-    // v1: History-View im Sidebar (in v2 als separate Messages-Ansicht)
     try {
-      const msgs = await invoke<unknown[]>("history_load_session", {
+      const msgs = await invoke<PersistedMessage[]>("history_load_session", {
         sessionId,
       });
-      // eslint-disable-next-line no-console
-      console.info(
-        `Loaded ${msgs.length} messages from session ${sessionId} (v1: log only)`,
+      setLocalMessages(
+        msgs.map((msg) => ({
+          id: msg.id,
+          role: msg.role,
+          content: msg.content,
+        })),
       );
     } catch (e) {
       // eslint-disable-next-line no-console
       console.error("history_load_session failed:", e);
+    }
+  }
+
+  async function handleDeleteSession(
+    event: React.MouseEvent<HTMLButtonElement>,
+    sessionId: string,
+  ) {
+    event.stopPropagation();
+    try {
+      await invoke("history_delete_session", { sessionId });
+      setSessions((prev) => prev.filter((s) => s.session_id !== sessionId));
+      if (currentSessionId === sessionId) {
+        setCurrentSessionId(null);
+        setLocalMessages([]);
+      }
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.error("history_delete_session failed:", e);
     }
   }
 
@@ -184,9 +210,23 @@ function ChatInner() {
                   void handleLoadSession(s.session_id);
                 }}
               >
-                <div className="session-title">{s.title}</div>
-                <div className="session-meta">
-                  {s.message_count} msgs · {s.model}
+                <div className="session-row">
+                  <div className="session-text">
+                    <div className="session-title">{s.title}</div>
+                    <div className="session-meta">
+                      {s.message_count} msgs · {s.model}
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    className="session-delete"
+                    aria-label={`Delete session ${s.title}`}
+                    onClick={(event) => {
+                      void handleDeleteSession(event, s.session_id);
+                    }}
+                  >
+                    ×
+                  </button>
                 </div>
               </li>
             ))}
@@ -247,14 +287,5 @@ function ChatInner() {
 }
 
 export default function ChatWindow() {
-  // runtimeUrl ist ein Platzhalter — CopilotKit validiert nur, dass
-  // EINES von runtimeUrl/publicApiKey/publicLicenseKey gesetzt ist.
-  // Wir rufen den Remote-Runtime-Pfad nie auf, weil der gesamte
-  // Chat über Tauri-IPC `chat_send` läuft.
-  const runtimeUrl = "http://localhost/copilotkit-runtime";
-  return (
-    <CopilotKit runtimeUrl={runtimeUrl}>
-      <ChatInner />
-    </CopilotKit>
-  );
+  return <ChatInner />;
 }

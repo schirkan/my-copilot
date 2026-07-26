@@ -1,6 +1,6 @@
-# SPEC-005 — Frontend (CopilotKit React)
+# SPEC-005 — Frontend (CopilotKit UI + Tauri IPC)
 
-**Status:** Planungs-Phase
+**Status:** Implementierung in Arbeit
 **Datum:** 2026-07-17
 **Bezug:** SPEC-001 § CopilotKit · SPEC-003 § Erstlauf-Flow ·
 SPEC-004 § IPC-Methoden
@@ -15,13 +15,15 @@ Tauri-WebView. Es:
 3. Verwaltet **UI-State** (offene Tabs, Dark/Light, Model-Auswahl).
 4. Kommuniziert mit der **Tauri-Rust Bridge** via **Tauri-IPC**
    (`invoke` / `listen` / `emit`).
-5. Nutzt **CopilotKit-Komponenten** für AI-Chat (Generative UI,
-   Tool-UI).
+5. Nutzt **CopilotKit als UI-Schicht**, aber nicht als Runtime-Schicht;
+  die Agent-Runtime sitzt in der Tauri-Rust-Bridge und wird über
+  Tauri-Commands angesprochen.
 
 ## Tech-Stack (Frontend-only)
 
 - **React 18+** mit TypeScript
-- **CopilotKit** (`@copilotkit/react-core`, `@copilotkit/react-ui`)
+- **CopilotKit UI-Komponenten / Hooks**, soweit sie keinen eigenen
+  Runtime-Handshake erzwingen
 - **Vite** als Build-Tool (Node.js nur zur Build-Zeit, nicht im
   Output)
 - **Tailwind CSS** für Styling (kein Bundle-Bloat)
@@ -42,16 +44,15 @@ Tauri-WebView. Es:
       <SettingsButton />
     </Sidebar>
     <MainPanel>
-      <CopilotKit runtime={...}>
+      <CopilotKitUiShell>
         <ChatWindow>
           <MessageList>
             <UserMessage />
-            <AssistantMessage streaming />
-            <ToolCallBadge />
+            <AssistantMessage />
           </MessageList>
           <ChatInput />
         </ChatWindow>
-      </CopilotKit>
+      </CopilotKitUiShell>
     </MainPanel>
   </ChatLayout>
 </App>
@@ -89,14 +90,6 @@ export const api = {
 
 // Events (Backend → Frontend)
 export const events = {
-  onChunk: (cb: (data: { requestId: string; text: string }) => void) =>
-    listen("chat.chunk", (e) => cb(e.payload)),
-
-  onDone: (cb: (data: { requestId: string; usage: TokenUsage }) => void) =>
-    listen("chat.done", (e) => cb(e.payload)),
-
-  onError: (cb: (data: { requestId: string; error: string }) => void) =>
-    listen("chat.error", (e) => cb(e.payload)),
 };
 ```
 
@@ -157,68 +150,43 @@ function EndpointForm() {
 }
 ```
 
-## CopilotKit-Integration
+## Chat-Integration
 
 ```tsx
-import { CopilotKit } from "@copilotkit/react-core";
-import { useCopilotChat } from "@copilotkit/react-core";
-
 function ChatWindow() {
-  const { messages, sendMessage, isLoading } = useCopilotChat();
+  const [messages, setMessages] = useState([]);
+  const [isLoading, setIsLoading] = useState(false);
 
   return (
-    <CopilotKit runtime={tauriRuntime}>
-      <div className="chat-window">
-        {messages.map((m) => (
-          <MessageBubble key={m.id} message={m} />
-        ))}
-        {isLoading && <TypingIndicator />}
-        <ChatInput onSubmit={sendMessage} />
-      </div>
-    </CopilotKit>
+    <div className="chat-window">
+      {messages.map((m) => (
+        <MessageBubble key={m.id} message={m} />
+      ))}
+      {isLoading && <TypingIndicator />}
+      <ChatInput
+        onSubmit={async (text) => {
+          setIsLoading(true);
+          const reply = await api.sendMessage(text);
+          setIsLoading(false);
+          // append reply to local state
+        }}
+      />
+    </div>
   );
 }
-
-// Runtime-Wrapper: Tauri-Rust → Copilot SDK Rust
-const tauriRuntime = {
-  // CopilotKit's RemoteAction-Adapter, der via Tauri-IPC an die
-  // Tauri-Rust Bridge geht (Stdin/Stdout-JSON-RPC zur Copilot CLI)
-  async chat({ messages, tools }) {
-    // ... mapped zu api.sendMessage / events.onChunk
-  },
-};
 ```
 
-## Tool-UI (Generative UI)
-
-CopilotKit erlaubt deklarative Tool-UI:
-
-```tsx
-import { useCopilotAction } from "@copilotkit/react-core";
-
-function FileReadTool() {
-  useCopilotAction({
-    name: "read_file",
-    description: "Reads a file from the local filesystem",
-    parameters: [
-      { name: "path", type: "string", description: "Absolute file path" },
-    ],
-    render: ({ args, status }) => (
-      <div className="tool-card">
-        📄 Reading <code>{args.path}</code>
-        {status === "complete" && " ✓"}
-      </div>
-    ),
-  });
-}
-```
+**Wichtig:** CopilotKit darf in diesem Projekt nur als visuelle/UI-
+Abstraktion verwendet werden. Es darf keinen eigenen Runtime-Connect
+auslösen. Die Source of Truth für Nachrichtenfluss, Sessions und BYOK
+liegt bei Tauri-IPC + Rust-SDK.
 
 ## State Management
 
 - **Lokal**: React `useState` für Form-Inputs, modals, etc.
 - **Global**: Zustand-Store für `currentSessionId`, `theme`,
   `userSettings`
-- **Server-State**: TanStack Query für Tauri-Rust-Bridge-Calls
+- **Server-State**: TanStack Query optional für Tauri-Rust-Bridge-Calls
   (caching, retry)
 
 ## Build-Setup (Vite)
@@ -265,7 +233,7 @@ export default defineConfig({
   in-memory-Index mit Sidecar-Cache-File?
 - **Dark/Light-Mode**: System-Präferenz folgen oder User-Settings?
 - **Markdown-Rendering** für Assistant-Responses: react-markdown?
-- **Tool-UI-Bibliothek**: shadcn/ui als Basis?
+- **Tool-/Permission-UI**: später über SDK-Session-Events ergänzen?
 - **i18n**: Deutsch + Englisch oder nur Deutsch (Martins Use-Case)?
 
 ## Quellen

@@ -8,7 +8,6 @@
 //! umstellen (signifikante Komplexitäts-Reduktion pro Message).
 
 use tauri::State;
-use tokio_stream::StreamExt;
 
 use crate::state::AppState;
 
@@ -45,21 +44,15 @@ pub async fn chat_send(
         .await
         .map_err(|e| format!("append user message: {}", e))?;
 
-    let mut bridge = crate::copilot::spawn_bridge(&state.exe_dir, config)
+    let bridge = crate::copilot::CopilotBridge::new(&exe_dir, config)
         .await
         .map_err(|e| format!("spawn bridge: {}", e))?;
 
-    let mut stream = bridge
-        .chat_streaming(message)
+    let response = bridge
+        .chat_once(message)
         .await
-        .map_err(|e| format!("chat_streaming: {}", e))?;
+        .map_err(|e| format!("chat_once: {}", e))?;
 
-    let mut response = String::new();
-    while let Some(chunk) = stream.next().await {
-        response.push_str(&chunk.text);
-    }
-
-    // Bridge wird gedroppt → kill_on_drop=true killt Subprozess sauber.
     drop(bridge);
 
     // Assistant-Message persistieren (nach Streaming)
