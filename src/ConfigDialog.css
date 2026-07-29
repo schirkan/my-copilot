@@ -14,7 +14,9 @@
   border-radius: 8px;
   width: 720px;
   max-width: 92vw;
-  max-height: 88vh;
+  /* Fixe Hoehe statt max-height: Tab-Wechsel aendert die Hoehe nicht mehr,
+     der Body scrollt statt das gesamte Dialog-Window wachsen zu lassen. */
+  height: 88vh;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -145,6 +147,63 @@
   border-radius: 3px;
   font-size: 0.85em;
   color: #c586c0;
+}
+
+/* Aufklappbarer "Additional Settings"-Bereich fuer die 5 erweiterten
+   Provider-Felder (Wire API, Bearer Token, Provider Model ID, Wire Model,
+   Provider Headers). Native <details>/<summary> = accessible, kein
+   State-Management noetig. */
+.form-section .advanced-settings {
+  margin-top: 0.5rem;
+  border: 1px solid #333;
+  border-radius: 4px;
+  background: #232323;
+}
+
+.form-section .advanced-settings > summary {
+  cursor: pointer;
+  padding: 0.6rem 0.85rem;
+  font-size: 0.9rem;
+  color: #4ec9b0;
+  user-select: none;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.form-section .advanced-settings > summary::-webkit-details-marker {
+  display: none;
+}
+
+.form-section .advanced-settings > summary::before {
+  content: "▶";
+  font-size: 0.7rem;
+  color: #888;
+  transition: transform 0.15s ease;
+  display: inline-block;
+  width: 0.85em;
+}
+
+.form-section .advanced-settings[open] > summary::before {
+  transform: rotate(90deg);
+}
+
+.form-section .advanced-settings > summary:hover {
+  background: #2a2a2a;
+}
+
+.form-section .advanced-settings > summary:focus-visible {
+  outline: 2px solid #4ec9b0;
+  outline-offset: -2px;
+}
+
+.form-section .advanced-settings .advanced-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding: 0.85rem;
+  border-top: 1px solid #333;
 }
 
 .row {
