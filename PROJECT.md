@@ -129,6 +129,16 @@ Detaillierte Aufschlüsselung pro Layer in
 - **2026-07-20 (CI in PROJECT.md dokumentiert + v0.1.0 stable)**:
   CI-Sektion in PROJECT.md hinzugefügt. Nach 8 grünen rc-Runden
   (rc10–rc17) wird das erste stable Release `v0.1.0` getaggt.
+- **2026-07-29 (FF-Merge origin/main + CI-Doku re-sync)**:
+  8 Commits von origin/main gemergt (FF, ab724a7..39ed573),
+  inkl. `c5873d7` (Rust-Copilot-SDK-Migration via `Client::create_session(...)` +
+  `ProviderConfig` + `send_and_wait(...)`), `ba6e31e` (CopilotKit-Runtime-Errors
+  + ErrorBoundary), `fbc6b38` (`/info`-Stub vom Vite-Dev-Server), `d5bb012`
+  (`appendMessage`-Bugfix), `9142224` (Dev-Mode Node-Resolution + BYOK-JSON-RPC-
+  Bridge-Shim), `61b1e50` (Vite-Config-Pfad im Dev-Script). CI-Sektion in
+  PROJECT.md an neue Architektur angepasst: Pipeline-Step 7 als non-blocking
+  markiert, Build-Output-Schema auf Rust-SDK ohne Node-Subprozess aktualisiert,
+  v0.1.0 als ✅ grün markiert, v0.1.0-rc18 als ausstehend vorgemerkt.
 
 ## Git
 
@@ -163,7 +173,7 @@ Detaillierte Aufschlüsselung pro Layer in
 | 4   | Setup Rust                             | `dtolnay/rust-toolchain@stable`                                                  |
 | 5   | Cache cargo registry                   | `Swatinem/rust-cache@v2`                                                         |
 | 6   | Install npm dependencies (frontend)    | `npm ci`                                                                         |
-| 7   | Install npm dependencies (Copilot CLI) | `npm install @github/copilot-cli` (bash)                                         |
+| 7   | Install npm dependencies (Copilot CLI) | `npm install @github/copilot-cli` (bash, non-blocking — obsolet seit Rust-SDK-Migration `c5873d7`) |
 | 8   | Install tauri-cli                      | via `npm ci` (Schritt 6) — spart ~5–10 Min/Run ggü. `cargo install`              |
 | 9   | Build frontend (tsc + vite)            | `cd "$GITHUB_WORKSPACE" && npm run build` (bash, cwd-agnostisch)                 |
 | 10  | Build Tauri app (no-bundle)            | `cd "$GITHUB_WORKSPACE/src-tauri" && npm exec -- tauri build --no-bundle` (bash) |
@@ -184,18 +194,26 @@ nicht löschen (bleibt als History in den Releases).
 
 ### Build-Output (ZIP-Bundle)
 
+> **Stand 2026-07-26:** Bundle-Layout durch Rust-Copilot-SDK-Migration (`c5873d7`) vereinfacht — Tauri-Rust-Binary ist self-contained, kein Node.js-Subprozess mehr nötig.
+
+```
+MyCopilot-portable-v0.1.0.zip
+├── MyCopilot.exe              ← Tauri-Rust-Binary (statisch gelinkt, ~30–50 MB, mit einkompiliertem `github-copilot-sdk`)
+├── README.txt                 ← Erstlauf-Dialog mit Endpoint- und API-Key-Hinweisen (auto-generiert im Assemble-Step)
+├── node/                      ← (nur wenn vorhanden, obsolet seit `c5873d7`)
+└── copilot-cli/               ← (nur wenn vorhanden, obsolet seit `c5873d7`)
+```
+
+Gesamtgröße: **~40–60 MB** (kleiner als v0.1.0-Variante mit Node-Subprozess-Bundle). Kein Code-Signing in v1 (v3-Feature). Persistenz: `config.json` + `data/sessions/{session-id}.jsonl` werden im exe-Verzeichnis angelegt.
+
+**v0.1.0-Bundle (vor Rust-Migration, archiviert):**
 ```
 my-copilot-v0.1.0.zip
 └── bin/
-    ├── my-copilot.exe          ← Tauri-Binary (statisch gelinkt, ~30–50 MB)
-    ├── copilot-cli/            ← Node.js-Subprozess
-    │   ├── @github/copilot-cli
-    │   ├── @tauri-apps/cli
-    │   └── node_modules/
-    └── (geplant v3: README.txt mit Installationshinweisen)
+    ├── my-copilot.exe          ← Tauri-Binary
+    ├── copilot-cli/            ← Node.js-Subprozess (obsolet seit `c5873d7`)
+    └── node/                   ← Embedded Node.js (obsolet seit `c5873d7`)
 ```
-
-Gesamtgröße: ~80–100 MB. Kein Code-Signing in v1 (v3-Feature).
 
 ### Lessons Learned (Pipeline-Fixes #1–#14)
 
@@ -217,11 +235,12 @@ Gesamtgröße: ~80–100 MB. Kein Code-Signing in v1 (v3-Feature).
 
 ### CI-Status (laufende Pipeline)
 
-| Tag-Phase     | Status    | Notes                                            |
-| ------------- | --------- | ------------------------------------------------ |
-| **rc1–rc13**  | ❌ rot     | diverse Fehler (siehe Lessons Learned)           |
-| **rc14–rc17** | ✅ grün    | alle 14 Steps success, ZIP-Bundle erstellt       |
-| **v0.1.0**    | ⏳ pending | erster Stable-Tag (getaggt 2026-07-20 nach rc17) |
+| Tag-Phase     | Status    | DBID                | Notes                                                          |
+| ------------- | --------- | ------------------- | -------------------------------------------------------------- |
+| **rc1–rc13**  | ❌ rot     | —                   | diverse Fehler (siehe Lessons Learned)                         |
+| **rc14–rc17** | ✅ grün    | `29704573326`       | alle 14 Steps + Post-Steps success, ZIP-Bundle + GitHub-Release |
+| **v0.1.0**    | ✅ grün    | `29724006762`       | DBID `29724006762`, alle 14 Steps + 3 Post-Steps success (`07:14:46Z` → `07:23:34Z`, ~9 min), GitHub Release `v0.1.0` mit ZIP-Bundle, automatisch getaggt nach rc17 |
+| **v0.1.0-rc18** | ⏳ pending | —                   | ergibt sich logisch aus `c5873d7` (Rust-SDK-Migration) + 5 Folge-Fixes nach FF-Merge. Falls ohne neue Probleme grün, direkt zu `v0.1.1` |
 
 ## Project Files
 
