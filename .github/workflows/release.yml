@@ -36,13 +36,6 @@ jobs:
       - name: Install npm dependencies (frontend)
         run: npm ci
 
-      - name: Install npm dependencies (Copilot CLI)
-        shell: bash
-        run: |
-          cd src-tauri/copilot-cli 2>/dev/null || mkdir -p src-tauri/copilot-cli
-          [ -f package.json ] || npm init -y >/dev/null 2>&1
-          npm install @github/copilot-cli 2>&1 | tail -5 || echo "copilot-cli install failed (non-blocking for build)"
-
       - name: Install tauri-cli
         shell: bash
         run: echo "@tauri-apps/cli is installed via npm ci"
@@ -88,15 +81,10 @@ jobs:
           # Copy binary
           Copy-Item $binary.FullName "$bundlePath\MyCopilot.exe"
 
-          # Copy embedded node/ + copilot-cli/ if present
-          $nodeDir = "src-tauri/node"
-          if (Test-Path $nodeDir) {
-            Copy-Item -Recurse $nodeDir "$bundlePath\node"
-          }
-          $copilotCliDir = "src-tauri/copilot-cli"
-          if (Test-Path $copilotCliDir) {
-            Copy-Item -Recurse $copilotCliDir "$bundlePath\copilot-cli"
-          }
+          # Seit SDK 1.0 + bundled-cli (Default-Feature seit 2026-07-26) ist
+          # die Copilot-CLI als komprimiertes Archive in MyCopilot.exe
+          # einkompiliert und wird vom SDK zur Laufzeit selbst entpackt.
+          # Kein externer Sidecar (kein node/, kein copilot-cli/) mehr.
 
           # Create README
           @"
@@ -114,7 +102,9 @@ jobs:
           ## Voraussetzungen
 
           - Windows 11 (WebView2 vorinstalliert)
-          - Keine weitere Software nötig (Node.js embedded, Copilot CLI embedded)
+          - Keine weitere Software nötig (Copilot CLI ist als bundled-cli ins
+            Binary einkompiliert -- das github-copilot-sdk-Crate laedt sie
+            zur Laufzeit selbst)
 
           ## Persistenz
 

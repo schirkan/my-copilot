@@ -21,12 +21,6 @@
 kein NSIS, keine Registry-Einträge, keine Admin-Rechte. Doppelklick auf
 `MyCopilot.exe` startet die App.
 
-## Ziel
-
-`My Copilot` läuft als **portabler Ordner** auf Windows 11. Kein MSI,
-kein NSIS, keine Registry-Einträge, keine Admin-Rechte. Doppelklick auf
-`MyCopilot.exe` startet die App.
-
 ## Folder-Layout (final)
 
 ```
@@ -48,13 +42,13 @@ MyCopilot/                            ← kopierbarer Ordner
 
 **Größe-Schätzung:**
 
-| Komponente                       | Größe           |
-|----------------------------------|-----------------|
-| Tauri-Rust exe (inkl. Bridge + SDK) | ~25–40 MB   |
-| Node.js embedded                 | ~30 MB          |
-| Copilot CLI+Deps                 | ~50–100 MB      |
-| React-Bundle                     | ~2–5 MB         |
-| **Gesamt**                       | **~107–175 MB** |
+| Komponente                          | Größe           |
+| ----------------------------------- | --------------- |
+| Tauri-Rust exe (inkl. Bridge + SDK) | ~25–40 MB       |
+| Node.js embedded                    | ~30 MB          |
+| Copilot CLI+Deps                    | ~50–100 MB      |
+| React-Bundle                        | ~2–5 MB         |
+| **Gesamt**                          | **~107–175 MB** |
 
 > Hinweis: Tauri-Rust exe wächst durch Bridge-Logik + Copilot SDK
 > Rust von ~10 MB auf ~25–40 MB. Netto-Ersparnis vs. C#-Variante:
