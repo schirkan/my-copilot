@@ -217,6 +217,11 @@ export default function ConfigDialog({ onClose, initialConfig }: Props) {
                 value={config.endpoint}
                 onChange={(e) => setConfig({ ...config, endpoint: e.target.value })}
               />
+              <small className="hint">
+                Base-URL des Providers. <code>/v1</code> ist optional -- wir
+                haengen es bei Bedarf selbst an (kompatibel mit OpenAI, Azure,
+                OpenRouter, LM Studio, vLLM, etc.).
+              </small>
 
               <label htmlFor="cfg-api-key">API-Key</label>
               <input

@@ -6,9 +6,10 @@ use std::time::Duration;
 
 use github_copilot_sdk::handler::ApproveAllHandler;
 use github_copilot_sdk::types::{ProviderConfig, SessionConfig};
-use github_copilot_sdk::{CliProgram, Client, ClientOptions, MessageOptions};
+use github_copilot_sdk::{Client, ClientOptions, MessageOptions};
 
 use super::process::ProcessError;
+// Pfad-Auflösung der CLI entfällt -- siehe process.rs.
 
 /// BYOK-Konfiguration (geladen aus `config.json`, v1: Klartext).
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -55,19 +56,21 @@ pub struct CopilotBridge {
 }
 
 impl CopilotBridge {
-    pub async fn new(exe_dir: &PathBuf, config: ByokConfig) -> Result<Self, ProcessError> {
-        let binary_path = super::process::resolve_copilot_binary_path(exe_dir)?;
-        let mut options = ClientOptions::default();
-        options.program = CliProgram::Path(binary_path);
-        let client = Client::start(options)
-        .await
-        .map_err(|e| ProcessError::Sdk(e.to_string()))?;
+    pub async fn new(_exe_dir: &PathBuf, config: ByokConfig) -> Result<Self, ProcessError> {
+        // Mit Feature `bundled-cli` bringt das SDK die CLI selbst mit
+        // (build.rs laedt sie aus den GitHub-Releases, verifiziert SHA256,
+        // entpackt nach OUT_DIR). Wir uebergeben daher keinen expliziten
+        // Program-Pfad -- Client::start nimmt die vom SDK gebundelte Binary.
+        let _ = _exe_dir; // Argument bleibt fuer API-Stabilitaet, ist ungenutzt.
+        let client = Client::start(ClientOptions::default())
+            .await
+            .map_err(|e| ProcessError::Sdk(e.to_string()))?;
         Ok(Self { client, config })
     }
 
     pub async fn chat_once(&self, user_message: String) -> Result<String, ProcessError> {
         let session_config = SessionConfig::default()
-            .with_handler(Arc::new(ApproveAllHandler))
+            .with_permission_handler(Arc::new(ApproveAllHandler))
             .with_model(self.config.model.clone())
             .with_provider(build_provider_config(&self.config));
         let session = self.client.create_session(session_config).await.map_err(|e| ProcessError::Sdk(e.to_string()))?;
@@ -93,7 +96,13 @@ impl Drop for CopilotBridge {
 }
 
 fn build_provider_config(config: &ByokConfig) -> ProviderConfig {
-    let mut provider = ProviderConfig::new(config.endpoint.clone()).with_provider_type("openai");
+    // Normalize: User koennen die URL mit oder ohne `/v1`-Suffix eingeben.
+    // Das SDK haengt `/v1` fuer `wire_api = "completions"` (Default) selbst an.
+    // Wir strippen trailing `/v1` (mit oder ohne Slash), damit weder ein
+    // doppeltes `/v1/v1/...` noch ein abgeschnittenes `/v1/models` entsteht.
+    let endpoint = strip_v1_suffix(&config.endpoint);
+
+    let mut provider = ProviderConfig::new(endpoint).with_provider_type("openai");
     if let Some(value) = config.provider_bearer_token.as_deref() {
         provider = provider.with_bearer_token(value.to_string());
     } else {
@@ -120,4 +129,15 @@ fn build_provider_config(config: &ByokConfig) -> ProviderConfig {
         }
     }
     provider
+}
+
+/// Entfernt ein angehaengtes `/v1` (mit oder ohne abschliessenden Slash) vom
+/// Endpoint, damit er sowohl mit `https://api.openai.com/v1` als auch mit
+/// `https://api.openai.com/v1/` als bare base URL verwendbar ist.
+fn strip_v1_suffix(endpoint: &str) -> String {
+    let trimmed = endpoint.trim_end_matches('/');
+    match trimmed.strip_suffix("/v1") {
+        Some(base) => base.to_string(),
+        None => trimmed.to_string(),
+    }
 }

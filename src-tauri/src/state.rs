@@ -14,7 +14,7 @@ use crate::copilot::{ByokConfig, CopilotBridge};
 /// Globaler App-State, der von Tauri-Commands geteilt wird.
 ///
 /// Enthält:
-/// - `app_handle`: für `shell().sidecar(...)`-Aufrufe
+/// - `app_handle`: für Tauri-APIs (z. B. Event-Emit)
 /// - `exe_dir`: Pfad zum exe-Verzeichnis (für Working-Dir-Defaults)
 /// - `config`: aktuelle BYOK-Konfiguration. Wird aus `config.json` geladen
 ///   (`lib.rs::run`) und per `config_set`-Command aktualisiert.

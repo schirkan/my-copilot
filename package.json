@@ -8,10 +8,9 @@
     "dev": "vite -c src/vite.config.ts",
     "build": "tsc -p src/tsconfig.json && vite build -c src/vite.config.ts",
     "preview": "vite preview",
-    "sidecar:copy": "node scripts/copy-sidecar.mjs",
     "tauri": "tauri",
-    "tauri:dev": "npm run sidecar:copy && tauri dev",
-    "tauri:build": "npm run sidecar:copy && tauri build",
+    "tauri:dev": "tauri dev",
+    "tauri:build": "tauri build",
     "tauri:icon": "tauri icon"
   },
   "dependencies": {

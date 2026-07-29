@@ -115,18 +115,25 @@ pub struct ConfigTestResult {
     pub error: Option<String>,
 }
 
-/// Testet einen Endpoint durch GET `{endpoint}/v1/models` mit
+/// Testet einen Endpoint durch GET `{base_url}/v1/models` mit
 /// Bearer-Auth. v1: simples 200-OK-Check + Model-Liste parsen.
+///
+/// Die Endpoint-URL darf MIT oder OHNE `/v1`-Suffix eingegeben werden --
+/// wir normalisieren auf den bare base URL und haengen `/v1/models`
+/// einmal an.
 #[tauri::command]
 pub async fn config_test(
     endpoint: String,
     api_key: String,
 ) -> Result<ConfigTestResult, String> {
-    let url = if endpoint.ends_with('/') {
-        format!("{}v1/models", endpoint)
-    } else {
-        format!("{}/v1/models", endpoint)
+    let base = {
+        let trimmed = endpoint.trim_end_matches('/');
+        match trimmed.strip_suffix("/v1") {
+            Some(b) => b.to_string(),
+            None => trimmed.to_string(),
+        }
     };
+    let url = format!("{}/v1/models", base);
 
     let client = reqwest::Client::builder()
         .timeout(Duration::from_secs(10))

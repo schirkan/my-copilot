@@ -18,7 +18,6 @@ pub fn run() {
     .try_init();
 
     tauri::Builder::default()
-        .plugin(tauri_plugin_shell::init())
         .setup(|app| {
             // exe-Verzeichnis bestimmen (für Working-Dir-Defaults)
             let exe_dir = std::env::current_exe()

@@ -131,6 +131,22 @@
   border-color: #4ec9b0;
 }
 
+.form-section .hint {
+  font-size: 0.78rem;
+  color: #888;
+  margin-top: -0.25rem;
+  margin-bottom: 0.5rem;
+  line-height: 1.4;
+}
+
+.form-section .hint code {
+  background: #2a2a2a;
+  padding: 0 0.25rem;
+  border-radius: 3px;
+  font-size: 0.85em;
+  color: #c586c0;
+}
+
 .row {
   display: flex;
   gap: 0.5rem;

@@ -6,7 +6,6 @@
   "build": {
     "beforeDevCommand": "npm run dev",
     "devUrl": "http://localhost:1420",
-    "beforeBuildCommand": "echo skipping-frontend-build",
     "frontendDist": "../dist"
   },
   "app": {
@@ -27,10 +26,7 @@
   },
   "bundle": {
     "active": true,
-    "targets": "all",
-    "externalBin": [
-      "binaries/copilot"
-    ],
+    "targets": "app",
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
