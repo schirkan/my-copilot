@@ -1,8 +1,25 @@
 # SPEC-002 — Portable Bundle Layout
 
-**Status:** Planungs-Phase
-**Datum:** 2026-07-17
+**Status:** OBSOLET seit `c5873d7` (2026-07-26)
+**Datum:** 2026-07-17 (initial)
 **Bezug:** SPEC-001 § Tech-Entscheidungen → Tauri Bundle-Resources
+
+> **Obsolet-Notiz (2026-07-30):** Diese Spec beschrieb das Layout mit
+> embedded Node.js + separatem `copilot-cli/`-Ordner. Durch die Migration
+> auf das offizielle `github-copilot-sdk` Rust-Crate (`bundled-cli`-Feature)
+> ist das gesamte Sidecar-Konzept hinfällig: das SDK lädt die CLI selbst
+> vom offiziellen GitHub-Release herunter, verifiziert die SHA256 und
+> bettet sie als komprimiertes Archive in die finale Binary ein. Die
+> einzige Release-Artefakt-Datei ist jetzt `my-copilot.exe` (~100 MB).
+>
+> Diese Datei bleibt als historische Referenz erhalten. Für die aktuelle
+> Architektur siehe SPEC-001 und SPEC-004.
+
+## Ziel (historisch)
+
+`My Copilot` läuft als **portabler Ordner** auf Windows 11. Kein MSI,
+kein NSIS, keine Registry-Einträge, keine Admin-Rechte. Doppelklick auf
+`MyCopilot.exe` startet die App.
 
 ## Ziel
 

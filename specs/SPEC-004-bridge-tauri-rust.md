@@ -1,7 +1,9 @@
 # SPEC-004 — Tauri-Rust Bridge (Copilot SDK Rust)
 
-**Status:** Implementierung in Arbeit
-**Datum:** 2026-07-17 (initial) / 2026-07-17 (rewrite: C# → Rust)
+**Status:** Implementiert (`github-copilot-sdk = "1"`, `bundled-cli` Default)
+**Datum:** 2026-07-17 (initial) / 2026-07-17 (rewrite: C# → Rust) /
+2026-07-26 (Runtime-Migration: manueller ACP-Handshake → SDK-Client) /
+2026-07-30 (Update für SDK 1.0.8, `bundled-cli`-Default, Endpoint-Normalisierung)
 **Bezug:** SPEC-001 § Tech-Entscheidungen (Tauri-Rust Bridge) ·
 SPEC-005 § IPC-Anbindung · `DECISIONS.md` § Architektur-Verschlankung
 
@@ -24,14 +26,21 @@ React (lokale Chat-UI)
   ↕ Tauri-IPC (Commands + Events, intern — kein Netzwerk)
 Tauri-Rust (App-Shell + Bridge)
     ├── github_copilot_sdk::Client
+    │   └── bundled-cli Feature: CLI als komprimiertes Archive im
+    │       Binary, wird zur Laufzeit vom SDK aus
+    │       target/<profile>/copilot.exe geladen (Node.js SEA /
+    │       Single Executable Application -- kein separates Node.js
+    │       noetig)
     └── SessionConfig + ProviderConfig (BYOK)
-Copilot CLI (Node.js-App, embedded)
-  ↕ HTTPS / SSE
 OpenAI-kompatibler Endpoint
 ```
 
-**Zwei Prozesse zur Laufzeit**: Tauri-Rust (App-Shell + Bridge) ·
-Node.js+CLI.
+**Ein Prozess zur Laufzeit** (Tauri-Rust). Die CLI wird vom SDK intern
+als Subprozess gespawnt (`tokio::process::Command` mit Stdin/Stdout-
+Pipes) -- kein separater Node.js-Prozess von uns mehr (war bis
+`c5873d7` obsolet). Das vorherige Setup mit embedded Node.js + separatem
+`copilot-cli/`-Ordner ist Geschichte; siehe SPEC-002 (Obsolet seit
+`c5873d7`).
 
 ## SDK-Architektur
 
@@ -57,42 +66,72 @@ React UI                    Tauri-Rust Bridge              github_copilot_sdk
 2. **Tauri-Rust ↔ CLI**: Stdin/Stdout-Pipes des Subprozesses
    (JSON-RPC, **kein Port**, kein HTTP, kein Named Pipe).
 
-## SDK-Client-Lifecycle
+## SDK-Client-Lifecycle (SDK 1.0.8, `bundled-cli` Default)
 
-Die Bridge verwendet den offiziellen Rust-SDK-Client. Dieser verwaltet
-die Copilot-CLI-Runtime selbst und kapselt Spawn, Health-Checks,
-Transport und Session-Erzeugung.
+Die Bridge verwendet den offiziellen Rust-SDK-Client. Das `bundled-cli`-
+Feature (Default seit SDK 1.0) laedt die CLI selbst aus den
+offiziellen GitHub-Releases herunter, verifiziert die SHA256 und
+entpackt sie nach `target/<profile>/copilot.exe`. Die Bridge muss sich
+**nicht** mehr um Pfad-Auflösung, Download oder Sidecar-Bundling
+kümmern.
 
 ```rust
 use std::sync::Arc;
-use github_copilot_sdk::{Client, ClientOptions, CliProgram, MessageOptions};
+use github_copilot_sdk::{Client, ClientOptions, MessageOptions};
 use github_copilot_sdk::handler::ApproveAllHandler;
 use github_copilot_sdk::types::{ProviderConfig, SessionConfig};
 
-let mut provider = ProviderConfig::default();
-provider.provider_type = Some("openai".to_string());
-provider.base_url = "https://api.minimax.io/v1".to_string();
-provider.api_key = Some("...".to_string());
-provider.wire_api = Some("completions".to_string());
-
-let client = Client::start(
-    ClientOptions::default()
-        .with_program(CliProgram::Path(copilot_binary_path))
-).await?;
+// Kein expliziter Program-Pfad noetig -- Client::start nimmt die vom
+// SDK gebundelte Binary (siehe Cargo.toml: bundled-cli = Default).
+let client = Client::start(ClientOptions::default()).await?;
 
 let session = client.create_session(
     SessionConfig::default()
-        .with_permission_handler(Arc::new(ApproveAllHandler))
-        .with_provider(provider)
+        .with_permission_handler(Arc::new(ApproveAllHandler))   // v1.x Naming!
+        .with_model(byok_config.model.clone())
+        .with_provider(build_provider_config(&byok_config))
 ).await?;
 
 let response = session
-    .send_and_wait(MessageOptions::new("Hello"))
+    .send_and_wait(
+        MessageOptions::new(message).with_wait_timeout(Duration::from_secs(60))
+    )
     .await?;
 ```
 
-**Wichtig:** Die Bridge verwaltet weiterhin den Pfad zur eingebetteten
-CLI-Binary, aber nicht mehr das ACP- oder JSON-RPC-Protokoll selbst.
+**Wichtig (Breaking Changes seit SDK 0.1):**
+
+- `SessionConfig::with_handler(...)` heißt in SDK 1.x
+  **`with_permission_handler(...)`** (war ein Tippfehler in der alten
+  Spec, hier explizit richtiggestellt).
+- `CliProgram::Path(...)` ist nicht mehr nötig; `ClientOptions::default()`
+  reicht. Damit fällt auch der gesamte Sidecar-Pfad-Auflösungs-Code weg
+  (siehe [`src-tauri/src/copilot/process.rs`](../src-tauri/src/copilot/process.rs)
+  -- `resolve_copilot_binary_path()` wurde in Commit `a1aa5bf` entfernt).
+- Die Bridge verwaltet **keine** CLI-Pfade mehr -- das SDK macht alles.
+
+### Endpoint-Normalisierung (BYOK)
+
+OpenAI-kompatible Provider erwarten `base_url` **ohne** `/v1`-Suffix
+(wird vom SDK für `wire_api = "completions"` automatisch angehängt).
+User können die URL aber **mit oder ohne** `/v1` eingeben -- die Bridge
+normalisiert in [`build_provider_config()`](../src-tauri/src/copilot/bridge.rs)
+via `strip_v1_suffix()`:
+
+```rust
+fn strip_v1_suffix(endpoint: &str) -> String {
+    let trimmed = endpoint.trim_end_matches('/');
+    match trimmed.strip_suffix("/v1") {
+        Some(base) => base.to_string(),
+        None => trimmed.to_string(),
+    }
+}
+```
+
+Dieselbe Normalisierung gilt für `config_test` (siehe
+[`config.rs`](../src-tauri/src/commands/config.rs)) -- sonst liefert
+ein Test mit `https://api.openai.com/v1` ein 404 auf
+`https://api.openai.com/v1/v1/models`.
 
 ## Bridge-Verantwortung
 
@@ -148,13 +187,18 @@ File oder Migration zu SQLite.
 
 ## Offene Punkte
 
-- **SDK-API-Stabilität**: Rust-SDK ist jung, aber offiziell. Mitigation:
-    Integrationslogik bleibt in einer Bridge-Schicht gekapselt.
+- **SDK-API-Stabilität**: SDK 1.x ist die aktuelle stabilie Major-Version.
+    Wir pinnen auf `github-copilot-sdk = "1"`. Breaking Changes innerhalb
+    der 1.x-Linie werden via SemVer-konforme Minor-Bumps signalisiert;
+    die Bridge isoliert die SDK-Aufrufe, sodass Anpassungen lokal
+    bleiben. Mitigation: Integrationslogik bleibt in `bridge.rs` +
+    `process.rs` gekapselt.
 - **Streaming-Granularität**: `Session::subscribe()` vs. `send_and_wait()`.
     V1 nutzt Einfachheit; Streaming kann später ergänzt werden.
-- **Bundling-Strategie**: SDK-`bundled-cli` vs. eigene Sidecar-Binary.
-    Für das bestehende Portable-Bundle muss die endgültige Strategie im
-    Build/Release-Pfad konsolidiert werden.
+- **Bundling-Strategie**: ✅ gelöst seit Commit `a1aa5bf` (SDK 1.0 +
+    `bundled-cli` Default). Keine externe Sidecar-Binary mehr, kein
+    `externalBin`, keine `bundle.resources`-Mappings. Release-Artefakt:
+    `target/release/my-copilot.exe` (~100 MB, single-file).
 - **Schema-Migration JSONL**: bei v1+ Schema-Changes für JSONL
   (rückwärtskompatibel via Default-Werte pro Feld).
 
