@@ -1,10 +1,14 @@
 //! `process_health` + `process_restart`-Commands.
 //!
-//! In der neuen Architektur (per-Request ACP-Subprozess) gibt es
-//! keine persistente Bridge im AppState mehr. `process_health`
-//! liefert daher einfache Status-Infos; `process_restart` ist ein
-//! No-op (der nächste `chat_send`-Call spawnt ohnehin einen
-//! frischen Subprozess).
+//! Architektur-Stand (2026-07-30): `CopilotBridge` (SDK-Client +
+//! CLI-Subprozess) lebt persistent in `AppState.bridge` und wird
+//! zwischen Message-Calls reused. Per-Request gibt es eine frische
+//! `Session` (siehe `commands/chat::chat_send`).
+//!
+//! `process_health` liefert Status-Infos über die Bridge (initialised
+//! oder nicht). `process_restart` killt die aktive Session und
+//! drop't die Bridge -> der naechste `chat_send` spawnt einen
+//! frischen Client.
 
 use serde::Serialize;
 use tauri::State;
@@ -14,7 +18,8 @@ use crate::state::AppState;
 #[derive(Serialize, Clone, Debug)]
 pub struct HealthDto {
     pub config_loaded: bool,
-    pub last_chat_ok: bool,
+    pub bridge_initialised: bool,
+    pub active_session: bool,
     pub note: &'static str,
 }
 
@@ -24,21 +29,41 @@ pub async fn process_health(
     state: State<'_, AppState>,
 ) -> Result<HealthDto, String> {
     let config_loaded = state.config.lock().await.is_some();
+    let bridge_initialised = state.bridge.lock().await.is_some();
+    let active_session = state.active_session.lock().await.is_some();
 
     Ok(HealthDto {
         config_loaded,
-        last_chat_ok: false, // wird in v2 mit echter Telemetry ersetzt
-        note: "Per-Request Rust-SDK-Session (kein persistent state)",
+        bridge_initialised,
+        active_session,
+        note: "Persistent SDK-Client + Per-Message Sessions",
     })
 }
 
-/// Killt laufende Subprozesse. In der aktuellen Architektur
-/// existiert keine persistente Bridge; jeder `chat_send`-Call
-/// spawnt einen frischen Subprozess und killt ihn am Ende.
+/// Killt die aktive Session (sofern vorhanden) und drop't die
+/// Bridge. Der naechste `chat_send` spawnt einen frischen Client.
 #[tauri::command]
 pub async fn process_restart(
-    _state: State<'_, AppState>,
+    state: State<'_, AppState>,
 ) -> Result<(), String> {
-    log::info!("process_restart: no-op (per-request spawn model)");
+    // Session disconnecten (falls aktiv)
+    {
+        let mut active = state.active_session.lock().await;
+        if let Some(active) = active.take() {
+            let session = active.session.lock().await;
+            if let Err(e) = session.abort().await {
+                log::warn!("process_restart: session.abort failed: {}", e);
+            }
+            if let Err(e) = session.disconnect().await {
+                log::warn!("process_restart: session.disconnect failed: {}", e);
+            }
+        }
+    }
+    // Bridge droppen -> Drop-Impl ruft client.stop()
+    {
+        let mut bridge = state.bridge.lock().await;
+        *bridge = None;
+    }
+    log::info!("process_restart: bridge cleared, next chat_send will respawn");
     Ok(())
 }

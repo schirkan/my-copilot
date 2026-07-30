@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import "./ChatWindow.css";
@@ -22,12 +23,48 @@ interface ChatMessage {
   id: string;
   role: string;
   content: string | ChatContentPart[];
+  /** Request-ID, mit der diese Message erzeugt wurde. Wird fuer
+   *  Streaming (`chat_chunk`-Events) und Cancel verwendet. */
+  request_id?: string;
 }
 
 interface PersistedMessage {
   id: string;
   role: string;
   content: string;
+}
+
+// -----------------------------------------------------------------------------
+// Streaming-Event-Payloads (siehe src-tauri/src/commands/chat.rs)
+// -----------------------------------------------------------------------------
+
+interface ChatChunkPayload {
+  request_id: string;
+  delta: string;
+  accumulated: string;
+}
+
+interface ChatDonePayload {
+  request_id: string;
+  content: string;
+}
+
+interface ChatErrorPayload {
+  request_id: string;
+  error: string;
+}
+
+// -----------------------------------------------------------------------------
+// Response auf `chat_send`
+// -----------------------------------------------------------------------------
+
+interface ChatSendResponse {
+  /** Stabile Session-ID (mehrere Messages teilen dieselbe ID). Wird
+   *  vom Client gecached und beim naechsten `chat_send` zurueckgegeben,
+   *  damit User + Assistant beider Messages im selben JSONL landen. */
+  session_id: string;
+  /** Transient Korrelations-ID fuer die Streaming-Events dieses Calls. */
+  request_id: string;
 }
 
 function extractText(content: string | ChatContentPart[] | undefined): string {
@@ -58,20 +95,20 @@ function makeId(): string {
 }
 
 /**
- * Lokale Chat-UI für My Copilot.
+ * Lokale Chat-UI fuer My Copilot mit Echtzeit-Streaming.
  *
- * Architektur (siehe SPEC-001 + SPEC-005):
- *  - Tauri-IPC-Command `chat_send` ruft den Copilot-SDK-Subprozess
- *    über die Tauri-Rust-Bridge auf (kein HTTP, kein externes Backend).
- *  - CopilotKit ist aktuell bewusst NICHT im Render-Tree. Die lokale
- *    Chat-Logik spricht direkt Tauri-IPC `chat_send`; ein CopilotKit-
- *    Provider würde in v1.63.x sonst automatisch eine Runtime-Info
- *    gegen die CopilotKit-Cloud auflösen.
- *  - Frühere Versuche mit `useCopilotChat({ onSubmitMessage })` oder
- *    `appendMessage(plainObject)` crashen, weil der Hook in v1.63.1
- *    CopilotKit-Message-Instanzen (mit `isResultMessage()`) erwartet
- *    bzw. intern GraphQL-Remote-Runtime ansprechen würde. Daher
- *    managen wir Messages und Submit-Pfad jetzt komplett lokal.
+ * Architektur (siehe SPEC-001 + SPEC-005 + commands/chat.rs):
+ *  - Frontend ruft `chat_send` auf, das sofort die `request_id`
+ *    zurueckgibt.
+ *  - Tauri-Events `chat_chunk` / `chat_done` / `chat_error` liefern
+ *    die Assistant-Response in Echtzeit (Token-fuer-Token).
+ *  - User-Message wird VOR dem Stream persistiert, Assistant-Message
+ *    NACH `chat_done` (oder gar nicht bei `chat_error`).
+ *  - Cancel: `chat_cancel(request_id)` -> session.abort() -> loop
+ *    sieht `session.idle`/`session.error` und emittiert `chat_done`/
+ *    `chat_error` (mit partial content).
+ *  - CopilotKit ist aktuell bewusst NICHT im Render-Tree (siehe
+ *    vorherige Commit-Historie).
  */
 function ChatInner() {
   const [input, setInput] = useState("");
@@ -81,7 +118,94 @@ function ChatInner() {
   );
   const [localMessages, setLocalMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [activeRequestId, setActiveRequestId] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
+
+  // ---------------------------------------------------------------------------
+  // Streaming-Event-Subscriptions
+  // ---------------------------------------------------------------------------
+  //
+  // Wir registrieren drei Listener, die per `request_id` die richtige
+  // Assistant-Bubble finden und inkrementell aktualisieren.
+  useEffect(() => {
+    const unlistens: UnlistenFn[] = [];
+
+    void (async () => {
+      // `chat_chunk` -- einzelnes Text-Delta. Wir nutzen `accumulated`
+      // direkt vom Backend (kein eigenes append noetig), damit
+      // Race-Conditions bei schnellen Chunks ausgeschlossen sind.
+      // (Tauri 2 erlaubt in Event-Namen keine Punkte, daher snake_case.)
+      unlistens.push(
+        await listen<ChatChunkPayload>("chat_chunk", (event) => {
+          const { request_id, accumulated } = event.payload;
+          setLocalMessages((prev) =>
+            prev.map((m) =>
+              m.request_id === request_id
+                ? { ...m, content: sanitizeAssistantContent(accumulated) }
+                : m,
+            ),
+          );
+        }),
+      );
+
+      // `chat_done` -- Antwort fertig. Content ist vollstaendig,
+      // loading-State wird gecleart.
+      unlistens.push(
+        await listen<ChatDonePayload>("chat_done", (event) => {
+          const { request_id, content } = event.payload;
+          setLocalMessages((prev) =>
+            prev.map((m) =>
+              m.request_id === request_id
+                ? { ...m, content: sanitizeAssistantContent(content) }
+                : m,
+            ),
+          );
+          setIsLoading(false);
+          setActiveRequestId(null);
+          // History refresh (JSONL-Persistenz ist in Rust abgeschlossen)
+          window.setTimeout(() => {
+            void (async () => {
+              try {
+                const list = await invoke<SessionMeta[]>(
+                  "history_list_sessions",
+                );
+                setSessions(list);
+              } catch (e) {
+                // eslint-disable-next-line no-console
+                console.error("history_list_sessions failed:", e);
+              }
+            })();
+          }, 300);
+        }),
+      );
+
+      // `chat_error` -- Fehler beim Stream. Content bleibt auf dem
+      // letzten Chunk stehen, error-Marker wird vorangestellt.
+      unlistens.push(
+        await listen<ChatErrorPayload>("chat_error", (event) => {
+          const { request_id, error } = event.payload;
+          setLocalMessages((prev) =>
+            prev.map((m) =>
+              m.request_id === request_id
+                ? {
+                  ...m,
+                  content: `[Fehler: ${error}]`,
+                }
+                : m,
+            ),
+          );
+          setIsLoading(false);
+          setActiveRequestId(null);
+        }),
+      );
+    })();
+
+    return () => {
+      for (const un of unlistens) {
+        un();
+      }
+    };
+  }, []);
 
   // Session-Liste beim Mount laden
   useEffect(() => {
@@ -105,65 +229,72 @@ function ChatInner() {
     const trimmed = input.trim();
     if (!trimmed || isLoading) return;
 
-    // User-Message lokal anzeigen
-    setLocalMessages((prev) => [
-      ...prev,
-      { id: makeId(), role: "user", content: trimmed },
-    ]);
-    setInput("");
+    // Wenn der User gerade eine Session geladen hat (oder schon
+    // Nachrichten in dieser View hat), verwende deren ID. Sonst
+    // ueberlassen wir die Vergabe Rust (UUID v4).
+    const sessionIdToUse = currentSessionId;
 
-    // Optimistic UI: leere Assistant-Bubble sofort rendern, damit
-    // der Lade-Zustand visuell klar ist.
-    const assistantId = makeId();
-    setLocalMessages((prev) => [
-      ...prev,
-      { id: assistantId, role: "assistant", content: "" },
-    ]);
+    setInput("");
     setIsLoading(true);
 
-    void invoke<string>("chat_send", { message: trimmed })
-      .then((reply) => {
-        setLocalMessages((prev) =>
-          prev.map((m) =>
-            m.id === assistantId
-              ? { ...m, content: sanitizeAssistantContent(reply) }
-              : m,
-          ),
-        );
+    // Wir zeigen User-Message und leere Assistant-Bubble ERST NACH
+    // der Server-Response an -- so koennen wir direkt die
+    // Server-Request-ID als Marker verwenden. Das verhindert, dass
+    // die ersten `chat_chunk`-Events vor dem localen Marker-Override
+    // ankommen und in der falschen Bubble landen.
+    void invoke<ChatSendResponse>("chat_send", {
+      message: trimmed,
+      sessionId: sessionIdToUse,
+    })
+      .then((resp) => {
+        // Falls wir gerade eine neue Session gestartet haben, ist die
+        // vom Server vergebene session_id jetzt unsere currentSessionId.
+        if (!currentSessionId) {
+          setCurrentSessionId(resp.session_id);
+        }
+        // Optimistic UI: User-Message + leere Assistant-Bubble, die
+        // die Server-Request-ID als Marker traegt.
+        setLocalMessages((prev) => [
+          ...prev,
+          { id: makeId(), role: "user", content: trimmed },
+          {
+            id: makeId(),
+            role: "assistant",
+            content: "",
+            request_id: resp.request_id,
+          },
+        ]);
+        setActiveRequestId(resp.request_id);
       })
       .catch((err: unknown) => {
         const msg = err instanceof Error ? err.message : String(err);
-        setLocalMessages((prev) =>
-          prev.map((m) =>
-            m.id === assistantId
-              ? { ...m, content: `[Fehler: ${msg}]` }
-              : m,
-          ),
-        );
+        // Bei Fehler die User-Message NICHT in den Chat rendern (sonst
+        // steht sie ewig ohne Antwort da). Wir zeigen stattdessen
+        // einen Fehler-Bubble statt der User-Message.
+        setLocalMessages((prev) => [
+          ...prev,
+          { id: makeId(), role: "user", content: trimmed },
+          {
+            id: makeId(),
+            role: "assistant",
+            content: `[Fehler: ${msg}]`,
+          },
+        ]);
+        setIsLoading(false);
+        setActiveRequestId(null);
         // eslint-disable-next-line no-console
         console.error("chat_send failed:", err);
-      })
-      .finally(() => {
-        setIsLoading(false);
-        // Session-Liste refreshen (JSONL-Persistenz ist in Rust
-        // abgeschlossen, sobald chat_send zurückkehrt).
-        window.setTimeout(() => {
-          void (async () => {
-            try {
-              const list = await invoke<SessionMeta[]>(
-                "history_list_sessions",
-              );
-              setSessions(list);
-              if (list.length > 0) {
-                setCurrentSessionId(list[0].session_id);
-              }
-            } catch (e) {
-              // eslint-disable-next-line no-console
-              console.error("history_list_sessions failed:", e);
-            }
-          })();
-        }, 500);
       });
+  }
+
+  async function handleCancel() {
+    if (!activeRequestId) return;
+    try {
+      await invoke("chat_cancel", { requestId: activeRequestId });
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.error("chat_cancel failed:", e);
+    }
   }
 
   async function handleLoadSession(sessionId: string) {
@@ -269,7 +400,9 @@ function ChatInner() {
                     <ReactMarkdown remarkPlugins={[remarkGfm]}>
                       {extractText(m.content)}
                     </ReactMarkdown>
-                  ) : (isLoading ? "…" : "")
+                  ) : isLoading && m.request_id === activeRequestId ? (
+                    <span className="typing-indicator">…</span>
+                  ) : null
                 ) : (
                   extractText(m.content)
                 )}
@@ -293,14 +426,26 @@ function ChatInner() {
             rows={3}
             disabled={isLoading}
           />
-          <button
-            type="button"
-            className="primary"
-            onClick={handleSend}
-            disabled={isLoading || !input.trim()}
-          >
-            {isLoading ? "…" : "Senden"}
-          </button>
+          <div className="input-buttons">
+            {isLoading && (
+              <button
+                type="button"
+                className="cancel-btn"
+                onClick={handleCancel}
+                aria-label="Cancel current request"
+              >
+                Abbrechen
+              </button>
+            )}
+            <button
+              type="button"
+              className="primary"
+              onClick={handleSend}
+              disabled={isLoading || !input.trim()}
+            >
+              {isLoading ? "…" : "Senden"}
+            </button>
+          </div>
         </div>
       </main>
     </div>

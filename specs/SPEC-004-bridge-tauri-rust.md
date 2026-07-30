@@ -1,9 +1,10 @@
 # SPEC-004 — Tauri-Rust Bridge (Copilot SDK Rust)
 
-**Status:** Implementiert (`github-copilot-sdk = "1"`, `bundled-cli` Default)
+**Status:** Implementiert (`github-copilot-sdk = "1"`, `bundled-cli` Default) + Streaming
 **Datum:** 2026-07-17 (initial) / 2026-07-17 (rewrite: C# → Rust) /
 2026-07-26 (Runtime-Migration: manueller ACP-Handshake → SDK-Client) /
-2026-07-30 (Update für SDK 1.0.8, `bundled-cli`-Default, Endpoint-Normalisierung)
+2026-07-30 (Update für SDK 1.0.8, `bundled-cli`-Default, Endpoint-Normalisierung) /
+2026-07-30 (Streaming-Implementierung: `Session::subscribe()`, persistente Bridge)
 **Bezug:** SPEC-001 § Tech-Entscheidungen (Tauri-Rust Bridge) ·
 SPEC-005 § IPC-Anbindung · `DECISIONS.md` § Architektur-Verschlankung
 
@@ -147,16 +148,118 @@ Die Rust-Bridge ist für folgende Aufgaben zuständig:
 
 | Methode           | Richtung        | Payload                                               |
 | ----------------- | --------------- | ----------------------------------------------------- |
-| `chat.send`       | Frontend → Rust | `{message: string}`                                   |
-| `chat.cancel`     | Frontend → Rust | `{request_id: string}`                                |
-| `config.get`      | Frontend → Rust | `{}` → `{endpoint, model, systemPrompt, mcpServers}`  |
-| `config.set`      | Frontend → Rust | `{endpoint, apiKey, model, systemPrompt, mcpServers}` |
-| `config.test`     | Frontend → Rust | `{endpoint, apiKey}` → `{ok, models}`                 |
-| `process.health`  | Frontend → Rust | `{}` → `{cli_running, cli_ready}`                     |
-| `process.restart` | Frontend → Rust | `{}` (Subprozess neu starten)                         |
+| `chat_send`       | Frontend → Rust | `{message: string}` → `request_id` (sofort)           |
+| `chat_cancel`     | Frontend → Rust | `{requestId: string}` → `session.abort()`             |
+| `chat.chunk`      | Rust → Frontend | `{request_id, delta, accumulated}` (Streaming-Event)  |
+| `chat.done`       | Rust → Frontend | `{request_id, content}` (Session fertig)              |
+| `chat.error`      | Rust → Frontend | `{request_id, error}` (Session-Fehler)                |
+| `config_get`      | Frontend → Rust | `{}` → `{endpoint, model, systemPrompt, mcpServers}`  |
+| `config_set`      | Frontend → Rust | `{endpoint, apiKey, model, systemPrompt, mcpServers}` |
+| `config_test`     | Frontend → Rust | `{endpoint, apiKey}` → `{ok, models}`                 |
+| `process_health`  | Frontend → Rust | `{}` → `{cli_running, cli_ready}`                     |
+| `process_restart` | Frontend → Rust | `{}` (Subprozess neu starten)                         |
 
-V1 kann weiter non-streaming bleiben; später kann `Session::subscribe()`
-für echtes Event-/Chunk-Streaming genutzt werden.
+Siehe [`src-tauri/src/commands/chat.rs`](../src-tauri/src/commands/chat.rs)
+für die volle Streaming-Implementierung.
+
+## Streaming-Architektur (v2)
+
+`chat_send` returnt **sofort** die `request_id` (statt der fertigen
+Antwort) und emittiert die Assistant-Response als Tauri-Events.
+Implementiert in [`src-tauri/src/commands/chat.rs`](../src-tauri/src/commands/chat.rs).
+
+### Lifecycle pro Chat-Message
+
+```
+Frontend                         Tauri-Rust                          SDK
+  │                                  │                                │
+  │ invoke('chat_send', message, session_id?)│                        │
+  ├─────────────────────────────────►│                                │
+  │                                  │ persist user message (JSONL)   │
+  │                                  │ ensure_bridge() (lazy client)  │
+  │                                  │ create_session() [with_streaming(true)] │
+  │ ◄────── {session_id, request_id} ──│                                │
+  │                                  │ subscribe() (broadcast)        │
+  │                                  │ session.send(message)          │
+  │                                  │ spawn stream-loop task         │
+  │                                  │                                │
+  │                                  │ ◄── assistant.message_delta ───┤ (streaming)
+  │ ◄── emit('chat_chunk') ─────────│  (delta, accumulated)          │
+  │     (x N)                        │                                │
+  │                                  │ ◄── session.idle (oder assistant.idle) ┤
+  │ ◄── emit('chat_done') ──────────│                                │
+  │                                  │ persist assistant message      │
+  │                                  │ session.disconnect()           │
+  │                                  │ remove from active_session     │
+```
+
+### Persistente Bridge
+
+Vorher (v1 non-streaming): pro `chat_send` wurde ein neuer
+`Client::start()` Roundtrip gemacht, dann `client.stop()` im Drop.
+Bei schnellem Chat (~1 Message/Sekunde) ist das spuerbar Latenz.
+
+Jetzt (v2):
+
+- **Eine `Client` pro App-Lifetime**: `CopilotBridge` lebt in
+  `AppState.bridge`, wird beim ersten `chat_send` lazy erzeugt.
+  Konfig-Mismatch (Endpoint/Model) triggert Recreation.
+- **Eine `Session` pro Chat-Message**: `bridge.create_session()`
+  liefert eine frische Session pro Request. Sessions kapseln den
+  CLI-State (History, Tools, ...) pro Request lifecyclebar.
+- **Streaming via `Session::subscribe()`**: Broadcast-Channel
+  wird in der Event-Loop des SDK befuellt. Der Bridge-Stream-Loop
+  konsumiert `assistant.message_delta`/`session.idle`/
+  `session.error` und emittiert sie als Tauri-Events.
+
+### Cancellation
+
+`chat_cancel(request_id)` greift `session.abort()` auf der aktiven
+Session (gehalten in `AppState.active_session: Mutex<Option<ActiveSession>>`
+mit `Arc<tokio::sync::Mutex<Session>>` fuer Sharing). Der Stream-Loop
+sieht darauf `session.idle`/`session.error` und emittiert
+`chat.done`/`chat.error` mit dem bis dahin akkumulierten Content
+(Partial-Response bei Cancel).
+
+### Wichtige SDK-Reihenfolge
+
+`subscribe()` MUSS **vor** `send()` aufgerufen werden, sonst verpasst
+der Subscriber fruehe `assistant.message_delta`-Events (siehe SDK
+`Session::subscribe` Doc). Der Bridge-Code respektiert diese
+Reihenfolge.
+
+### Event-Typen-Mapping
+
+| SDK Event                 | Tauri Event   | Payload-Felder                                |
+| ------------------------- | ------------- | --------------------------------------------- |
+| `assistant.message_delta` | `chat_chunk`  | `deltaContent` + `accumulated`        |
+| `assistant.message`       | `chat_chunk`  | Full-Content (Fallback fuer Non-Streaming)    |
+| `session.idle` / `assistant.idle` | `chat_done`   | (akkumulierten Content)                |
+| `session.error`           | `chat_error`  | `errorMessage`/`message`             |
+
+Nicht weitergeleitet: `assistant.message_start`, `assistant.streaming_delta`
+(kumulative Bytes, redundant), `assistant.reasoning_delta`,
+`assistant.tool_call_delta`, `tool.execution_*`, `session.start` etc.
+TODO v3: separater Event-Channel fuer Tool-Progress-UI.
+
+### Streaming aktivieren
+
+Streaming ist **off by default** in SDK 1.0.8. Ohne explizites
+`with_streaming(true)` auf `SessionConfig` senden die meisten
+OpenAI-kompatiblen Provider (z. B. MiniMax M3) nur ein einziges
+`assistant.message`-Event mit dem vollstaendigen Content statt
+Token-Deltas. Der Bridge-Stream-Loop behandelt **beide** Varianten
+(`assistant.message_delta` + `assistant.message`-Fallback), aber
+fuer Echtzeit-Typewriter-Effekt ist `with_streaming(true)` Pflicht.
+
+### Endpoint-Normalisierung (dedupe, nicht strip)
+
+Der `dedupe_v1_suffix()`-Helper reduziert nur **doppelte**
+`/v1/v1`-Suffixe auf eins. Ein einzelnes `/v1` (wie es viele
+OpenAI-Provider als Teil ihrer Basis-URL erwarten, z. B. MiniMax M3)
+bleibt unangetastet. Vorher wurde `/v1` immer abgeschnitten, was
+bei diesen Providern zu 404 fuehrte. Unit-Tests in `bridge.rs::tests`
+decken Happy-Path + Edge-Cases ab.
 
 ## Persistenz
 
@@ -193,8 +296,9 @@ File oder Migration zu SQLite.
     die Bridge isoliert die SDK-Aufrufe, sodass Anpassungen lokal
     bleiben. Mitigation: Integrationslogik bleibt in `bridge.rs` +
     `process.rs` gekapselt.
-- **Streaming-Granularität**: `Session::subscribe()` vs. `send_and_wait()`.
-    V1 nutzt Einfachheit; Streaming kann später ergänzt werden.
+- **Streaming-Granularität**: ✅ gelöst seit 2026-07-30. `Session::subscribe()`
+    + `chat.chunk`/`chat.done`/`chat.error` Tauri-Events. Siehe
+    `## Streaming-Architektur (v2)` oben.
 - **Bundling-Strategie**: ✅ gelöst seit Commit `a1aa5bf` (SDK 1.0 +
     `bundled-cli` Default). Keine externe Sidecar-Binary mehr, kein
     `externalBin`, keine `bundle.resources`-Mappings. Release-Artefakt:

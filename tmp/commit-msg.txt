@@ -1,0 +1,37 @@
+Streaming-Architektur v2: persistente Bridge + Event-basiertes Streaming
+
+Refaktorierung der Chat-Pipeline von non-streaming (Request/Response)
+auf persistente-Client + Event-basierte Streams.
+
+Rust-Side:
+- Persistente CopilotBridge in AppState.bridge (lazy init, Recreation
+  bei Config-Mismatch). Per-Message Sessions via create_session().
+- SessionConfig::with_streaming(true) fuer assistant.message_delta
+  Token-Events.
+- Drei Tauri-Events: chat_chunk (Delta), chat_done (fertig), chat_error
+  (Fehler). Snace_case wegen Tauri 2 Event-Name-Validation.
+- chat_send Response: {session_id, request_id} -- stabil-vs-transient-
+  Trennung. Persistenz nutzt session_id, Streaming-Korrelation
+  nutzt request_id.
+- chat_cancel ruft session.abort() auf der aktiven Session
+  (Arc<Mutex<Session>> in AppState.active_session).
+- dedupe_v1_suffix() ersetzt strip_v1_suffix() -- nur Doppel-/v1/v1
+  deduplizieren, einzelnes /v1 bleibt (z. B. MiniMax M3).
+  Unit-Tests in bridge.rs::tests.
+- process_restart killt aktive Session + drop't Bridge.
+- lib.rs: debug Log-Level fuer my_copilot_lib.
+
+Frontend-Side:
+- listen() fuer chat_chunk/chat_done/chat_error.
+- Race-freie Bubble-Erzeugung: erst NACH chat_send-Response rendern,
+  mit Server-request_id als Marker.
+- Abbrechen-Button waehrend aktiver Stream.
+- currentSessionId-Tracking, an chat_send zurueckgegeben.
+
+Doku:
+- SPEC-004 § Streaming-Architektur (v2) neu.
+- IP-Payload-Shape angepasst (chat_chat > chat.chunk).
+- PROJECT.md: M10 Eintrag, CI-Status v0.1.0-rc19 pending.
+
+Manuell getestet: 484 Token-Deltas, accumulated_len=947 Bytes,
+chat_done mit full-content (MiniMax M3).

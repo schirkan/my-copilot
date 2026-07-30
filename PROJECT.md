@@ -106,6 +106,48 @@ Detaillierte Aufschlüsselung pro Layer in
   auto-scroll zur neuesten Message). `src/App.tsx` zeigt
   `<ChatWindow />`, sobald Config geladen ist.
 
+- **2026-07-31 (M10 abgeschlossen — Streaming-Architektur v2)**:
+  Komplette Refaktorierung der Chat-Pipeline von non-streaming
+  (Request/Response) auf persistente-Client + Event-basierte Streams.
+  Konkret:
+  - **Persistente `CopilotBridge`**: `AppState.bridge` haelt den
+    SDK-Client (und damit CLI-Subprozess) fuer die App-Lifetime;
+    `ensure_bridge()` lazy-init oder Recreation bei Config-Mismatch.
+  - **Per-Message `Session`**: `bridge.create_session()` liefert
+    frische Session pro Request, sauber lifecyclebar fuer
+    `abort()` / `disconnect()`.
+  - **Echtzeit-Streaming**: `Session::subscribe()` + `with_streaming(true)`
+    routen `assistant.message_delta`-Token-Events durch. Drei
+    neue Tauri-Events: `chat_chunk` (pro Delta), `chat_done`
+    (Antwort fertig), `chat_error` (Fehler).
+  - **Stable Session-IDs**: `chat_send` akzeptiert optional
+    `session_id` und returnt `{session_id, request_id}`. Frontend
+    trackt `currentSessionId`, Folge-Messages haengen an dieselbe
+    Session an (eine JSONL pro Session, nicht pro Message).
+  - **Synchronous Cancellation**: `chat_cancel(request_id)` ruft
+    `session.abort()` auf der aktiven Session (gehalten in
+    `AppState.active_session` als `Arc<tokio::sync::Mutex<Session>>`).
+  - **Race-freie Frontend-Bubble**: User-Message und Assistant-Bubble
+    werden erst NACH der `chat_send`-Response gerendert (mit der
+    Server-`request_id` als Marker), damit `chat_chunk`-Events,
+    die parallel ankommen, immer die richtige Bubble finden.
+  - **Endpoint-Normalisierung**: `dedupe_v1_suffix()` (statt
+    `strip_v1_suffix()`) -- reduziert nur doppelte `/v1/v1`-Suffixe,
+    laesst einzelne `/v1` unangetastet (viele OpenAI-kompatible
+    Provider erwarten `/v1` als Teil der Basis-URL, z. B. MiniMax M3).
+    Unit-Tests in `bridge.rs::tests`.
+  - **Tauri-Event-Naming**: snake_case (`chat_chunk`, `chat_done`,
+    `chat_error`) statt dotted (`chat.chunk` etc.), weil Tauri 2
+    nur `[a-zA-Z0-9-/:_]` in Event-Namen zulaesst.
+  - **CI-Status**: manuell in Dev getestet, Streaming end-to-end
+    funktioniert mit MiniMax M3 (484 Token-Deltas pro Sample-Prompt,
+    accumulated_len=947 Bytes, `chat_done` mit full-content).
+  - Geänderte Dateien: `src-tauri/src/copilot/bridge.rs`,
+    `src-tauri/src/state.rs`, `src-tauri/src/commands/chat.rs`,
+    `src-tauri/src/commands/process.rs`, `src-tauri/src/lib.rs`,
+    `src/ChatWindow.tsx`, `src/ChatWindow.css`,
+    `specs/SPEC-004-bridge-tauri-rust.md`.
+
 - **2026-07-26 (Runtime-Migration abgeschlossen)**:
   Der manuelle ACP-Handshake wurde durch das offizielle Rust-SDK
   (`github-copilot-sdk`) ersetzt. Die Tauri-Rust-Bridge erstellt
@@ -241,6 +283,7 @@ my-copilot-v0.1.0.zip
 | **rc14–rc17** | ✅ grün    | `29704573326`       | alle 14 Steps + Post-Steps success, ZIP-Bundle + GitHub-Release |
 | **v0.1.0**    | ✅ grün    | `29724006762`       | DBID `29724006762`, alle 14 Steps + 3 Post-Steps success (`07:14:46Z` → `07:23:34Z`, ~9 min), GitHub Release `v0.1.0` mit ZIP-Bundle, automatisch getaggt nach rc17 |
 | **v0.1.0-rc18** | ⏳ pending | —                   | ergibt sich logisch aus `c5873d7` (Rust-SDK-Migration) + 5 Folge-Fixes nach FF-Merge. Falls ohne neue Probleme grün, direkt zu `v0.1.1` |
+| **v0.1.0-rc19** | ⏳ pending | —                   | **Streaming-Architektur v2** (M10, 2026-07-31): persistente Bridge, `chat_chunk`/`chat_done`/`chat_error`-Tauri-Events, `assistant.message_delta`-Streaming via `with_streaming(true)`, Session-ID-Trennung von Request-ID, `dedupe_v1_suffix`-Endpoint-Normalisierung. Erwartet: grün, dann direkt zu `v0.1.1` |
 
 ## Project Files
 

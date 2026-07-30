@@ -10,9 +10,10 @@ use tauri::Manager;
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     // Logger initialisieren (logs gehen nach stderr — Card #4 schreibt
-    // sie zusätzlich in data/logs/).
+    // sie zusätzlich in data/logs/). Default debug für my_copilot_lib,
+    // damit wir die Streaming-Events sehen können.
     let _ = env_logger::Builder::from_env(
-        env_logger::Env::default().default_filter_or("info")
+        env_logger::Env::default().default_filter_or("debug,my_copilot_lib=debug")
     )
     .format_timestamp_millis()
     .try_init();
