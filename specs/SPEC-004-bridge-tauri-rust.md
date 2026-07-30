@@ -230,12 +230,12 @@ Reihenfolge.
 
 ### Event-Typen-Mapping
 
-| SDK Event                 | Tauri Event   | Payload-Felder                                |
-| ------------------------- | ------------- | --------------------------------------------- |
-| `assistant.message_delta` | `chat_chunk`  | `deltaContent` + `accumulated`        |
-| `assistant.message`       | `chat_chunk`  | Full-Content (Fallback fuer Non-Streaming)    |
-| `session.idle` / `assistant.idle` | `chat_done`   | (akkumulierten Content)                |
-| `session.error`           | `chat_error`  | `errorMessage`/`message`             |
+| SDK Event                         | Tauri Event  | Payload-Felder                             |
+| --------------------------------- | ------------ | ------------------------------------------ |
+| `assistant.message_delta`         | `chat_chunk` | `deltaContent` + `accumulated`             |
+| `assistant.message`               | `chat_chunk` | Full-Content (Fallback fuer Non-Streaming) |
+| `session.idle` / `assistant.idle` | `chat_done`  | (akkumulierten Content)                    |
+| `session.error`                   | `chat_error` | `errorMessage`/`message`                   |
 
 Nicht weitergeleitet: `assistant.message_start`, `assistant.streaming_delta`
 (kumulative Bytes, redundant), `assistant.reasoning_delta`,

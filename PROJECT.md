@@ -207,22 +207,22 @@ Detaillierte Aufschlüsselung pro Layer in
 
 ### Pipeline-Schritte (14)
 
-| #   | Step                                   | Action                                                                           |
-| --- | -------------------------------------- | -------------------------------------------------------------------------------- |
-| 1   | Set up job                             | Runner-Init                                                                      |
-| 2   | Checkout                               | `actions/checkout@v5`                                                            |
-| 3   | Setup Node.js                          | `actions/setup-node@v5`, Node 22                                                 |
-| 4   | Setup Rust                             | `dtolnay/rust-toolchain@stable`                                                  |
-| 5   | Cache cargo registry                   | `Swatinem/rust-cache@v2`                                                         |
-| 6   | Install npm dependencies (frontend)    | `npm ci`                                                                         |
+| #   | Step                                   | Action                                                                                             |
+| --- | -------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| 1   | Set up job                             | Runner-Init                                                                                        |
+| 2   | Checkout                               | `actions/checkout@v5`                                                                              |
+| 3   | Setup Node.js                          | `actions/setup-node@v5`, Node 22                                                                   |
+| 4   | Setup Rust                             | `dtolnay/rust-toolchain@stable`                                                                    |
+| 5   | Cache cargo registry                   | `Swatinem/rust-cache@v2`                                                                           |
+| 6   | Install npm dependencies (frontend)    | `npm ci`                                                                                           |
 | 7   | Install npm dependencies (Copilot CLI) | `npm install @github/copilot-cli` (bash, non-blocking — obsolet seit Rust-SDK-Migration `c5873d7`) |
-| 8   | Install tauri-cli                      | via `npm ci` (Schritt 6) — spart ~5–10 Min/Run ggü. `cargo install`              |
-| 9   | Build frontend (tsc + vite)            | `cd "$GITHUB_WORKSPACE" && npm run build` (bash, cwd-agnostisch)                 |
-| 10  | Build Tauri app (no-bundle)            | `cd "$GITHUB_WORKSPACE/src-tauri" && npm exec -- tauri build --no-bundle` (bash) |
-| 11  | Locate Tauri build output              | `Get-ChildItem -Filter "my-copilot.exe"` (pwsh)                                  |
-| 12  | Assemble portable bundle               | Kopiert Binary + Cargo-Deps in `bin/` (pwsh)                                     |
-| 13  | Upload artifact                        | `actions/upload-artifact@v5`                                                     |
-| 14  | Create GitHub Release                  | `softprops/action-gh-release@v3` (ZIP)                                           |
+| 8   | Install tauri-cli                      | via `npm ci` (Schritt 6) — spart ~5–10 Min/Run ggü. `cargo install`                                |
+| 9   | Build frontend (tsc + vite)            | `cd "$GITHUB_WORKSPACE" && npm run build` (bash, cwd-agnostisch)                                   |
+| 10  | Build Tauri app (no-bundle)            | `cd "$GITHUB_WORKSPACE/src-tauri" && npm exec -- tauri build --no-bundle` (bash)                   |
+| 11  | Locate Tauri build output              | `Get-ChildItem -Filter "my-copilot.exe"` (pwsh)                                                    |
+| 12  | Assemble portable bundle               | Kopiert Binary + Cargo-Deps in `bin/` (pwsh)                                                       |
+| 13  | Upload artifact                        | `actions/upload-artifact@v5`                                                                       |
+| 14  | Create GitHub Release                  | `softprops/action-gh-release@v3` (ZIP)                                                             |
 
 ### Versioning-Strategie
 
@@ -277,13 +277,13 @@ my-copilot-v0.1.0.zip
 
 ### CI-Status (laufende Pipeline)
 
-| Tag-Phase     | Status    | DBID                | Notes                                                          |
-| ------------- | --------- | ------------------- | -------------------------------------------------------------- |
-| **rc1–rc13**  | ❌ rot     | —                   | diverse Fehler (siehe Lessons Learned)                         |
-| **rc14–rc17** | ✅ grün    | `29704573326`       | alle 14 Steps + Post-Steps success, ZIP-Bundle + GitHub-Release |
-| **v0.1.0**    | ✅ grün    | `29724006762`       | DBID `29724006762`, alle 14 Steps + 3 Post-Steps success (`07:14:46Z` → `07:23:34Z`, ~9 min), GitHub Release `v0.1.0` mit ZIP-Bundle, automatisch getaggt nach rc17 |
-| **v0.1.0-rc18** | ⏳ pending | —                   | ergibt sich logisch aus `c5873d7` (Rust-SDK-Migration) + 5 Folge-Fixes nach FF-Merge. Falls ohne neue Probleme grün, direkt zu `v0.1.1` |
-| **v0.1.0-rc19** | ⏳ pending | —                   | **Streaming-Architektur v2** (M10, 2026-07-31): persistente Bridge, `chat_chunk`/`chat_done`/`chat_error`-Tauri-Events, `assistant.message_delta`-Streaming via `with_streaming(true)`, Session-ID-Trennung von Request-ID, `dedupe_v1_suffix`-Endpoint-Normalisierung. Erwartet: grün, dann direkt zu `v0.1.1` |
+| Tag-Phase       | Status    | DBID          | Notes                                                                                                                                                                                                                                                                                                           |
+| --------------- | --------- | ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **rc1–rc13**    | ❌ rot     | —             | diverse Fehler (siehe Lessons Learned)                                                                                                                                                                                                                                                                          |
+| **rc14–rc17**   | ✅ grün    | `29704573326` | alle 14 Steps + Post-Steps success, ZIP-Bundle + GitHub-Release                                                                                                                                                                                                                                                 |
+| **v0.1.0**      | ✅ grün    | `29724006762` | DBID `29724006762`, alle 14 Steps + 3 Post-Steps success (`07:14:46Z` → `07:23:34Z`, ~9 min), GitHub Release `v0.1.0` mit ZIP-Bundle, automatisch getaggt nach rc17                                                                                                                                             |
+| **v0.1.0-rc18** | ⏳ pending | —             | ergibt sich logisch aus `c5873d7` (Rust-SDK-Migration) + 5 Folge-Fixes nach FF-Merge. Falls ohne neue Probleme grün, direkt zu `v0.1.1`                                                                                                                                                                         |
+| **v0.1.0-rc19** | ⏳ pending | —             | **Streaming-Architektur v2** (M10, 2026-07-31): persistente Bridge, `chat_chunk`/`chat_done`/`chat_error`-Tauri-Events, `assistant.message_delta`-Streaming via `with_streaming(true)`, Session-ID-Trennung von Request-ID, `dedupe_v1_suffix`-Endpoint-Normalisierung. Erwartet: grün, dann direkt zu `v0.1.1` |
 
 ## Project Files
 
