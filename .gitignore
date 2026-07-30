@@ -5,6 +5,9 @@ target/
 bin/
 obj/
 
+# Working / scratch files (nicht in Git)
+tmp/
+
 # Tauri
 src-tauri/target/
 src-tauri/icon-source.*
